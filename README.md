@@ -58,23 +58,26 @@ create a Sandbox app first, then a Live app once you're ready to go live.
 
 ## Automatic setup (CLI)
 
-The `paypal-partner` CLI **auto-detects which kind of .NET project you're in** - ASP.NET Core (Minimal
-API/MVC), a Worker Service, a console app, or a class library - and installs and wires up the right
-package(s) accordingly. No `--framework` flag to get right; it inspects your `.csproj` (and `Program.cs`
-as a fallback) for you.
+The `paypal-partner` CLI **auto-detects which kind of .NET project you're in** and installs/wires up the
+right package(s) for it - no `--framework` flag, no interactive "what kind of app is this?" prompt. It
+covers every way NuGet.org itself documents installing a package for a project-based app, plus the newer
+.NET 10 file-based app model:
+
+| Detected as | Signal used | What `init` does |
+|---|---|---|
+| ASP.NET Core (Minimal API/MVC) | `Sdk="Microsoft.NET.Sdk.Web"`, a `FrameworkReference` to `Microsoft.AspNetCore.App`, or `WebApplication.CreateBuilder` in source | Adds core + `.AspNetCore` packages, writes `appsettings.json`, prints `AddPayPalPartnerGateway`/`MapPayPalPartnerWebhook` snippet |
+| Worker Service | `Sdk="Microsoft.NET.Sdk.Worker"`, or `Host.CreateApplicationBuilder`/`CreateDefaultBuilder` in source | Adds core + `.AspNetCore` packages (for DI), writes `appsettings.json` |
+| Console app / class library | `OutputType=Exe`, or plain `Microsoft.NET.Sdk` | Adds the core package only, prints a `new PayPalPartnerClient(...)` snippet |
+| **.NET 10+ file-based app** (`dotnet run app.cs`, no `.csproj`) | No `.csproj` found; a single `.cs` file is | Inserts `#:package` directives directly into the file (and a `#:sdk Microsoft.NET.Sdk.Web` directive too, if the file hosts ASP.NET Core) instead of running `dotnet add package` |
 
 ```bash
 dotnet tool install --global dotnet-paypal-partner-gateway
 
-cd YourProject
+cd YourProject      # or a folder with a single app.cs, no .csproj required
 paypal-partner init
 ```
 
-Running `init` inside an ASP.NET Core project adds both `PayPal.PartnerGateway` and
-`PayPal.PartnerGateway.AspNetCore`, writes a `PayPalPartner` section into `appsettings.json`, and prints
-the exact `AddPayPalPartnerGateway`/`MapPayPalPartnerWebhook` snippet to paste into `Program.cs`. Running
-it inside a console app or class library adds only the core package and prints a `new PayPalPartnerClient(...)`
-snippet instead. Pass `--client-id`, `--client-secret`, and `--environment Sandbox|Live` to prefill values,
+Pass `--client-id`, `--client-secret`, and `--environment Sandbox|Live` to prefill values,
 or `--dry-run` to preview without changing anything:
 
 ```bash
