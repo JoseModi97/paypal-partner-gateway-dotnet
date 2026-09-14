@@ -54,7 +54,7 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish == 'true'
       uses: NuGet/login@v1
       with:
-        user: JoseModi97
+        user: Modi97
 
     - name: Publish to NuGet.org
       if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish == 'true'
