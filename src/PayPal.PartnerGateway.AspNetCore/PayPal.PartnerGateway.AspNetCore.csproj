@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -17,7 +17,7 @@
        (https://learn.microsoft.com/nuget/create-packages/package-authoring-best-practices) -->
   <PropertyGroup>
     <PackageId>PayPal.PartnerGateway.AspNetCore</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Jose Modi</Authors>
     <Company>Jose Modi</Company>
     <Copyright>Copyright (c) 2026 Jose Modi</Copyright>
@@ -28,7 +28,7 @@
     <RepositoryUrl>https://github.com/JoseModi97/paypal-partner-gateway-dotnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>paypal;paypal-api;paypal-webhooks;paypal-checkout;aspnetcore;aspnetcore-webapi;minimalapi;dependency-injection;webhook-verification;marketplace-payments;dotnet;csharp;sdk</PackageTags>
-    <PackageReleaseNotes>1.0.0: Initial release - AddPayPalPartnerGateway() DI extensions and MapPayPalPartnerWebhook() signature-verified Minimal API webhook mapping.</PackageReleaseNotes>
+    <PackageReleaseNotes>1.0.1: Added net9.0 as an explicit target framework alongside net8.0/net10.0 for broader compatibility. 1.0.0: Initial release - AddPayPalPartnerGateway() DI extensions and MapPayPalPartnerWebhook() signature-verified Minimal API webhook mapping.</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>

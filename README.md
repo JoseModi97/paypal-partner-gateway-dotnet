@@ -3,7 +3,7 @@
 [![NuGet](https://img.shields.io/nuget/v/PayPal.PartnerGateway.svg)](https://www.nuget.org/packages/PayPal.PartnerGateway)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/PayPal.PartnerGateway.svg)](https://www.nuget.org/packages/PayPal.PartnerGateway)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-netstandard2.0%20%7C%20net8.0%20%7C%20net10.0-blue.svg)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-netstandard2.0%20%7C%20net8.0%20%7C%20net9.0%20%7C%20net10.0-blue.svg)](https://dotnet.microsoft.com/)
 
 **PayPal.PartnerGateway** is an idiomatic, beginner-friendly **.NET / C# SDK for PayPal's Partner APIs**
 (Partner Referrals / seller onboarding, Checkout Orders, Payments, Webhooks, Vault, Apple Pay, Shipment
@@ -32,9 +32,13 @@ Covers:
 
 | Package | Description | Target Frameworks |
 |---|---|---|
-| **`PayPal.PartnerGateway`** | Core client: token management, all resource groups, DTOs | `netstandard2.0`, `net8.0`, `net10.0` |
-| **`PayPal.PartnerGateway.AspNetCore`** | ASP.NET Core DI extensions and Minimal API webhook route builder | `net8.0`, `net10.0` |
-| **`dotnet-paypal-partner-gateway`** | Global CLI tool (`paypal-partner`) - interactive setup wizard that auto-detects your project type | `net8.0` (runs on .NET 8, 9, 10+) |
+| **`PayPal.PartnerGateway`** | Core client: token management, all resource groups, DTOs | `netstandard2.0`, `net8.0`, `net9.0`, `net10.0` |
+| **`PayPal.PartnerGateway.AspNetCore`** | ASP.NET Core DI extensions and Minimal API webhook route builder | `net8.0`, `net9.0`, `net10.0` |
+| **`dotnet-paypal-partner-gateway`** | Global CLI tool (`paypal-partner`) - interactive setup wizard that auto-detects your project type | `net8.0` (rolls forward to run on .NET 9, 10, and any newer major runtime) |
+
+The core package's `netstandard2.0` target means it also runs on **.NET Framework 4.6.1+**, **.NET Core 2.0+**,
+Mono, Xamarin, and Unity - not just modern .NET - so it slots into most existing .NET codebases regardless
+of how old or new they are, while `net8.0`/`net9.0`/`net10.0` give current runtimes their own optimized build.
 
 ## Installation
 
@@ -63,12 +67,14 @@ right package(s) for it - no `--framework` flag, no interactive "what kind of ap
 covers every way NuGet.org itself documents installing a package for a project-based app, plus the newer
 .NET 10 file-based app model:
 
-| Detected as | Signal used | What `init` does |
+| Detected as | Detected via | Result |
 |---|---|---|
-| ASP.NET Core (Minimal API/MVC) | `Sdk="Microsoft.NET.Sdk.Web"`, a `FrameworkReference` to `Microsoft.AspNetCore.App`, or `WebApplication.CreateBuilder` in source | Adds core + `.AspNetCore` packages, writes `appsettings.json`, prints `AddPayPalPartnerGateway`/`MapPayPalPartnerWebhook` snippet |
-| Worker Service | `Sdk="Microsoft.NET.Sdk.Worker"`, or `Host.CreateApplicationBuilder`/`CreateDefaultBuilder` in source | Adds core + `.AspNetCore` packages (for DI), writes `appsettings.json` |
-| Console app / class library | `OutputType=Exe`, or plain `Microsoft.NET.Sdk` | Adds the core package only, prints a `new PayPalPartnerClient(...)` snippet |
-| **.NET 10+ file-based app** (`dotnet run app.cs`, no `.csproj`) | No `.csproj` found; a single `.cs` file is | Inserts `#:package` directives directly into the file (and a `#:sdk Microsoft.NET.Sdk.Web` directive too, if the file hosts ASP.NET Core) instead of running `dotnet add package` |
+| ASP.NET Core (Minimal API/MVC) | `Sdk="Microsoft.NET.Sdk.Web"` or `WebApplication.CreateBuilder` | Core + `.AspNetCore` packages, `appsettings.json`, DI/webhook snippet |
+| Worker Service | `Sdk="Microsoft.NET.Sdk.Worker"` or `Host.CreateApplicationBuilder` | Core + `.AspNetCore` packages (for DI), `appsettings.json` |
+| Console app / class library | `OutputType=Exe` or plain `Microsoft.NET.Sdk` | Core package only, `new PayPalPartnerClient(...)` snippet |
+| .NET 10+ file-based app (no `.csproj`) | A single `.cs` file, no project | `#:package` directives in the file instead of `dotnet add package` |
+
+<sub>File-based apps hosting ASP.NET Core also get a `#:sdk Microsoft.NET.Sdk.Web` directive automatically.</sub>
 
 ```bash
 dotnet tool install --global dotnet-paypal-partner-gateway
@@ -323,17 +329,48 @@ public Task<IResult> Webhook() =>
 
 ## Endpoint coverage
 
-| Area | Resource | Methods |
-|---|---|---|
-| Auth | *(internal, automatic)* | OAuth2 client-credentials token fetch/refresh |
-| Partner Referrals | `client.PartnerReferrals` | `CreateAsync`, `GetAsync`, `GetSellerStatusAsync`, `ListSellersAsync`, `GetSellerCredentialsAsync`, `GetSellerAccessTokenAsync` |
-| Managed Accounts *(limited release)* | `client.Onboarding` | `CreateManagedAccountAsync`, `SearchByExternalIdAsync`, `GetBySellerIdAsync`, `UpdateAsync`, `GetWalletDomainsAsync`, `UploadVerificationDocumentAsync` |
-| Checkout / Capture | `client.Orders` | `CreateAsync`, `GetAsync`, `ConfirmPaymentSourceAsync`, `AuthorizeAsync`, `CaptureAsync`, `AddTrackingAsync` |
-| Payments | `client.Payments` | `GetCaptureAsync`, `GetAuthorizationAsync`, `CaptureAuthorizationAsync`, `RefundCaptureAsync` |
-| Apple Pay | `client.ApplePay` | `RegisterDomainAsync`, `UnregisterDomainAsync` |
-| Vault / Payment Tokens | `client.PaymentTokens` | `CreateSetupTokenAsync`, `GetSetupTokenAsync`, `CreatePaymentTokenAsync`, `GetPaymentTokenAsync`, `MigrateBillingAgreementAsync` |
-| Shipment Tracking | `client.ShipmentTracking` | `AddAsync`, `AddBatchAsync` |
-| Webhooks | `client.Webhooks` | `CreateAsync`, `GetAsync`, `ListAsync`, `UpdateAsync`, `DeleteAsync`, `ResendEventNotificationAsync`, `VerifySignatureAsync`, `VerifyAsync` |
+OAuth2 token fetch/refresh happens automatically - there's no resource group for it. Everything else
+is grouped under `client.<Resource>`:
+
+| Area | Access via |
+|---|---|
+| Partner Referrals | `client.PartnerReferrals` |
+| Managed Accounts *(limited release)* | `client.Onboarding` |
+| Checkout / Capture | `client.Orders` |
+| Payments | `client.Payments` |
+| Apple Pay | `client.ApplePay` |
+| Vault / Payment Tokens | `client.PaymentTokens` |
+| Shipment Tracking | `client.ShipmentTracking` |
+| Webhooks | `client.Webhooks` |
+
+<details>
+<summary><strong>Full method list per resource</strong></summary>
+
+**Partner Referrals** — `client.PartnerReferrals`
+`CreateAsync` · `GetAsync` · `GetSellerStatusAsync` · `ListSellersAsync` · `GetSellerCredentialsAsync` · `GetSellerAccessTokenAsync`
+
+**Managed Accounts** *(limited release)* — `client.Onboarding`
+`CreateManagedAccountAsync` · `SearchByExternalIdAsync` · `GetBySellerIdAsync` · `UpdateAsync` · `GetWalletDomainsAsync` · `UploadVerificationDocumentAsync`
+
+**Checkout / Capture** — `client.Orders`
+`CreateAsync` · `GetAsync` · `ConfirmPaymentSourceAsync` · `AuthorizeAsync` · `CaptureAsync` · `AddTrackingAsync`
+
+**Payments** — `client.Payments`
+`GetCaptureAsync` · `GetAuthorizationAsync` · `CaptureAuthorizationAsync` · `RefundCaptureAsync`
+
+**Apple Pay** — `client.ApplePay`
+`RegisterDomainAsync` · `UnregisterDomainAsync`
+
+**Vault / Payment Tokens** — `client.PaymentTokens`
+`CreateSetupTokenAsync` · `GetSetupTokenAsync` · `CreatePaymentTokenAsync` · `GetPaymentTokenAsync` · `MigrateBillingAgreementAsync`
+
+**Shipment Tracking** — `client.ShipmentTracking`
+`AddAsync` · `AddBatchAsync`
+
+**Webhooks** — `client.Webhooks`
+`CreateAsync` · `GetAsync` · `ListAsync` · `UpdateAsync` · `DeleteAsync` · `ResendEventNotificationAsync` · `VerifySignatureAsync` · `VerifyAsync`
+
+</details>
 
 Anything not listed above (or any future PayPal endpoint) can still be called through the low-level engine:
 

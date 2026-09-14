@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -13,7 +13,7 @@
        (https://learn.microsoft.com/nuget/create-packages/package-authoring-best-practices) -->
   <PropertyGroup>
     <PackageId>PayPal.PartnerGateway</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Jose Modi</Authors>
     <Company>Jose Modi</Company>
     <Copyright>Copyright (c) 2026 Jose Modi</Copyright>
@@ -24,7 +24,7 @@
     <RepositoryUrl>https://github.com/JoseModi97/paypal-partner-gateway-dotnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>paypal;paypal-api;paypal-checkout;paypal-partner;partner-referral;marketplace-payments;split-payments;checkout;orders;payments;refunds;webhooks;webhook-verification;vault;oauth2;onboarding;dotnet;csharp;sdk</PackageTags>
-    <PackageReleaseNotes>1.0.0: Initial release - Partner Referrals, Orders/Checkout, Payments, Webhooks with signature verification, Vault, Apple Pay, Shipment Tracking, and Managed Accounts (limited release), plus automatic OAuth2 token caching.</PackageReleaseNotes>
+    <PackageReleaseNotes>1.0.1: Added net9.0 as an explicit target framework alongside netstandard2.0/net8.0/net10.0 for broader compatibility. Added a PartnerId fallback on Partner Referral calls. 1.0.0: Initial release - Partner Referrals, Orders/Checkout, Payments, Webhooks with signature verification, Vault, Apple Pay, Shipment Tracking, and Managed Accounts (limited release), plus automatic OAuth2 token caching.</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
