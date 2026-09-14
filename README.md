@@ -223,7 +223,10 @@ app.Run();
 ```
 
 A full runnable example (including onboarding a seller) is in
-[`samples/PayPal.PartnerGateway.Sample.WebApi`](samples/PayPal.PartnerGateway.Sample.WebApi).
+[`samples/PayPal.PartnerGateway.Sample.WebApi`](samples/PayPal.PartnerGateway.Sample.WebApi). For a smaller
+example per hosting model - console app, Minimal API, MVC, Worker Service, and a .NET 10 file-based app -
+each pre-wired with PayPal's public Sandbox test credentials so it runs against a real Sandbox with zero
+setup, see [`examples/`](examples).
 
 Every call returns a `PayPalApiResult<T>` - check `IsSuccess` before reading `Data`; declined payments and
 validation failures come back as an ordinary result with `Error` populated, not an exception. An exception
