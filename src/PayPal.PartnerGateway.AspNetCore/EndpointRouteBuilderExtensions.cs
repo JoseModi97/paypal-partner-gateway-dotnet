@@ -19,6 +19,7 @@ public static class EndpointRouteBuilderExtensions
     /// signature via PayPal's verify-webhook-signature API, and parses the event for you.
     /// Exempts the route from Antiforgery validation (PayPal cannot supply an antiforgery token).
     /// </summary>
+    /// <param name="endpoints">The endpoint route builder to map onto.</param>
     /// <param name="pattern">Route pattern, e.g. "/webhooks/paypal".</param>
     /// <param name="onSuccess">Invoked when the signature is valid. Do your order-fulfilment/database work here.</param>
     /// <param name="onFailure">Invoked when the signature is invalid or verification failed - log and investigate, don't process the event.</param>

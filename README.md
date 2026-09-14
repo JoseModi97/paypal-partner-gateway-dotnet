@@ -1,12 +1,17 @@
-# PayPal.PartnerGateway
+# PayPal.PartnerGateway - PayPal Partner API Client for .NET
 
 [![NuGet](https://img.shields.io/nuget/v/PayPal.PartnerGateway.svg)](https://www.nuget.org/packages/PayPal.PartnerGateway)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/PayPal.PartnerGateway.svg)](https://www.nuget.org/packages/PayPal.PartnerGateway)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-netstandard2.0%20%7C%20net8.0%20%7C%20net10.0-blue.svg)](https://dotnet.microsoft.com/)
 
-An idiomatic, beginner-friendly .NET client for **PayPal's Partner APIs** - built from the public
-[`PayPal Partner APIs`](https://developer.paypal.com/api/rest/) Postman collection so a platform/marketplace
-integration is a `dotnet add package` away instead of hand-rolling OAuth2 and HTTP plumbing.
+**PayPal.PartnerGateway** is an idiomatic, beginner-friendly **.NET / C# SDK for PayPal's Partner APIs**
+(Partner Referrals / seller onboarding, Checkout Orders, Payments, Webhooks, Vault, Apple Pay, Shipment
+Tracking) - built directly from PayPal's public [`PayPal Partner APIs`](https://developer.paypal.com/api/rest/)
+Postman collection, so a platform/marketplace payments integration is a `dotnet add package` away instead
+of hand-rolling OAuth2 client-credentials and HTTP plumbing yourself. Works with ASP.NET Core, Worker
+Services, console apps, and plain class libraries - and a companion CLI tool can auto-detect which one
+you're in and set it up for you.
 
 Authored by [Jose Modi](https://github.com/JoseModi97).
 
@@ -29,6 +34,7 @@ Covers:
 |---|---|---|
 | **`PayPal.PartnerGateway`** | Core client: token management, all resource groups, DTOs | `netstandard2.0`, `net8.0`, `net10.0` |
 | **`PayPal.PartnerGateway.AspNetCore`** | ASP.NET Core DI extensions and Minimal API webhook route builder | `net8.0`, `net10.0` |
+| **`dotnet-paypal-partner-gateway`** | Global CLI tool (`paypal-partner`) that detects your project type and sets everything up | `net8.0` (runs on .NET 8, 9, 10+) |
 
 ## Installation
 
@@ -37,8 +43,45 @@ dotnet add package PayPal.PartnerGateway
 dotnet add package PayPal.PartnerGateway.AspNetCore
 ```
 
+Or skip the manual steps and let the CLI figure out what you need (see
+[Automatic setup](#automatic-setup-cli) below):
+
+```bash
+dotnet tool install --global dotnet-paypal-partner-gateway
+paypal-partner init
+```
+
 Get your **Client ID** and **Client Secret** from the [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/applications) -
 create a Sandbox app first, then a Live app once you're ready to go live.
+
+---
+
+## Automatic setup (CLI)
+
+The `paypal-partner` CLI **auto-detects which kind of .NET project you're in** - ASP.NET Core (Minimal
+API/MVC), a Worker Service, a console app, or a class library - and installs and wires up the right
+package(s) accordingly. No `--framework` flag to get right; it inspects your `.csproj` (and `Program.cs`
+as a fallback) for you.
+
+```bash
+dotnet tool install --global dotnet-paypal-partner-gateway
+
+cd YourProject
+paypal-partner init
+```
+
+Running `init` inside an ASP.NET Core project adds both `PayPal.PartnerGateway` and
+`PayPal.PartnerGateway.AspNetCore`, writes a `PayPalPartner` section into `appsettings.json`, and prints
+the exact `AddPayPalPartnerGateway`/`MapPayPalPartnerWebhook` snippet to paste into `Program.cs`. Running
+it inside a console app or class library adds only the core package and prints a `new PayPalPartnerClient(...)`
+snippet instead. Pass `--client-id`, `--client-secret`, and `--environment Sandbox|Live` to prefill values,
+or `--dry-run` to preview without changing anything:
+
+```bash
+paypal-partner detect                 # show what init would do, without doing it
+paypal-partner init --dry-run
+paypal-partner init --client-id ID --client-secret SECRET --environment Sandbox
+```
 
 ---
 
@@ -259,3 +302,9 @@ if (!result.IsSuccess)
 ## License
 
 MIT © [Jose Modi](https://github.com/JoseModi97)
+
+---
+
+<sub>Keywords: PayPal .NET SDK, PayPal C# client, PayPal Partner API, PayPal Checkout Orders API,
+PayPal Partner Referral onboarding, PayPal webhook signature verification, PayPal Vault payment tokens,
+PayPal marketplace/split payments, PayPal ASP.NET Core integration.</sub>

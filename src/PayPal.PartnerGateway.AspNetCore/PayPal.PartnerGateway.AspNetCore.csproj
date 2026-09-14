@@ -13,19 +13,24 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <!-- Package Metadata adhering to Microsoft Package Authoring Best Practices
+       (https://learn.microsoft.com/nuget/create-packages/package-authoring-best-practices) -->
   <PropertyGroup>
     <PackageId>PayPal.PartnerGateway.AspNetCore</PackageId>
     <Version>1.0.0</Version>
     <Authors>Jose Modi</Authors>
     <Company>Jose Modi</Company>
     <Copyright>Copyright (c) 2026 Jose Modi</Copyright>
-    <Description>ASP.NET Core dependency-injection and Minimal API integration for PayPal.PartnerGateway: AddPayPalPartnerGateway() DI registration and MapPayPalPartnerWebhook() for signature-verified webhook handling.</Description>
+    <Title>PayPal Partner APIs ASP.NET Core Integration</Title>
+    <Description>ASP.NET Core integration for PayPal.PartnerGateway: AddPayPalPartnerGateway() dependency-injection registration (appsettings.json or fluent config), and MapPayPalPartnerWebhook() for Minimal API webhook endpoints with automatic PayPal signature verification. MVC controller helpers included.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/JoseModi97/paypal-partner-gateway-dotnet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/JoseModi97/paypal-partner-gateway-dotnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>paypal;partner;aspnetcore;webhooks;dependency-injection;sdk</PackageTags>
+    <PackageTags>paypal;paypal-api;paypal-webhooks;paypal-checkout;aspnetcore;aspnetcore-webapi;minimalapi;dependency-injection;webhook-verification;marketplace-payments;dotnet;csharp;sdk</PackageTags>
+    <PackageReleaseNotes>1.0.0: Initial release - AddPayPalPartnerGateway() DI extensions and MapPayPalPartnerWebhook() signature-verified Minimal API webhook mapping.</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IncludeSymbols>true</IncludeSymbols>
@@ -44,6 +49,7 @@
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Condition="Exists('..\..\LICENSE')" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" Condition="Exists('..\..\icon.png')" />
   </ItemGroup>
 
 </Project>
