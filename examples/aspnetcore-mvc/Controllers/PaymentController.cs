@@ -45,4 +45,15 @@ public class PaymentController : ControllerBase
         var order = await _client.Orders.GetAsync(orderId);
         return order.IsSuccess ? Ok(order.Data) : NotFound(new { error = order.Error?.Message });
     }
+
+    // Call this only after a Sandbox buyer has approved the order at its approvalUrl - capturing
+    // before approval fails with an ORDER_NOT_APPROVED error, which is expected, not a bug.
+    [HttpPost("orders/{orderId}/capture")]
+    public async Task<IActionResult> CaptureOrder(string orderId)
+    {
+        var capture = await _client.Orders.CaptureAsync(orderId);
+        return capture.IsSuccess
+            ? Ok(capture.Data)
+            : BadRequest(new { error = capture.Error?.Message, details = capture.Error?.Details });
+    }
 }

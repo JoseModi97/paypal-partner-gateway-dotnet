@@ -32,6 +32,19 @@ var order = await client.Orders.CreateAsync(new OrderRequest
     }
 });
 
-Console.WriteLine(order.IsSuccess
-    ? $"Order created: {order.Data!.Id} - {order.Data.ApprovalUrl}"
-    : $"Failed: {order.Error?.Message}");
+if (!order.IsSuccess)
+{
+    Console.WriteLine($"Failed to create order: {order.Error?.Message}");
+    return;
+}
+
+Console.WriteLine($"Order created: {order.Data!.Id}");
+Console.WriteLine($"Open this URL and approve it as a Sandbox buyer: {order.Data.ApprovalUrl}");
+Console.WriteLine("(Need a Sandbox buyer login? https://developer.paypal.com/dashboard/accounts)");
+Console.Write("Press Enter once approved to capture the payment...");
+Console.ReadLine();
+
+var capture = await client.Orders.CaptureAsync(order.Data.Id);
+Console.WriteLine(capture.IsSuccess
+    ? $"Captured! Payment status: {capture.Data!.Status}"
+    : $"Capture failed: {capture.Error?.Message}");

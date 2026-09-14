@@ -15,7 +15,9 @@ var app = builder.Build();
 
 app.MapGet("/", () => Results.Content(
     "<h3>PayPal.PartnerGateway - Minimal API example</h3>" +
-    "<p>POST /orders to create a Sandbox order, then GET /orders/{id} to fetch it back.</p>",
+    "<p>1. POST /orders to create a Sandbox order.</p>" +
+    "<p>2. Open the returned approvalUrl and approve it as a Sandbox buyer (developer.paypal.com/dashboard/accounts).</p>" +
+    "<p>3. POST /orders/{id}/capture to actually complete the payment.</p>",
     "text/html"));
 
 app.MapPost("/orders", async (PayPalPartnerClient client) =>
@@ -42,6 +44,16 @@ app.MapGet("/orders/{orderId}", async (string orderId, PayPalPartnerClient clien
 {
     var order = await client.Orders.GetAsync(orderId);
     return order.IsSuccess ? Results.Ok(order.Data) : Results.NotFound(new { error = order.Error?.Message });
+});
+
+// Call this only after a Sandbox buyer has approved the order at its approvalUrl - capturing
+// before approval fails with an ORDER_NOT_APPROVED error, which is expected, not a bug.
+app.MapPost("/orders/{orderId}/capture", async (string orderId, PayPalPartnerClient client) =>
+{
+    var capture = await client.Orders.CaptureAsync(orderId);
+    return capture.IsSuccess
+        ? Results.Ok(capture.Data)
+        : Results.BadRequest(new { error = capture.Error?.Message, details = capture.Error?.Details });
 });
 
 app.Run();

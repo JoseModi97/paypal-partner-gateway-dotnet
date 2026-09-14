@@ -37,7 +37,11 @@ public class Worker : BackgroundService
 
         if (order.IsSuccess)
         {
-            _logger.LogInformation("Created Sandbox order {OrderId} (status: {Status}). Approval URL: {ApprovalUrl}",
+            _logger.LogInformation(
+                "Created Sandbox order {OrderId} (status: {Status}). Approval URL: {ApprovalUrl} " +
+                "- a headless worker can't pause for browser approval, so this demo stops at order " +
+                "creation; see the console-script or file-based-app examples for the full " +
+                "create -> approve -> capture flow.",
                 order.Data!.Id, order.Data.Status, order.Data.ApprovalUrl);
         }
         else

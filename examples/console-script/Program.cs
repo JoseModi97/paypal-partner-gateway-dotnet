@@ -36,13 +36,24 @@ if (!order.IsSuccess)
 }
 
 Console.WriteLine($"Order created: {order.Data!.Id} (status: {order.Data.Status})");
-Console.WriteLine($"Approval URL:  {order.Data.ApprovalUrl}");
-
 Console.WriteLine();
-Console.WriteLine("Fetching the order back by ID to confirm the round trip...");
+Console.WriteLine($"1. Open this URL and approve it as a Sandbox buyer:");
+Console.WriteLine($"   {order.Data.ApprovalUrl}");
+Console.WriteLine();
+Console.WriteLine("   Need a Sandbox buyer login? Get one from your own PayPal Developer account:");
+Console.WriteLine("   https://developer.paypal.com/dashboard/accounts (use a 'Personal' test account).");
+Console.WriteLine();
+Console.Write("2. Once you've approved it in the browser, press Enter here to capture the payment...");
+Console.ReadLine();
 
-var fetched = await client.Orders.GetAsync(order.Data.Id);
+var capture = await client.Orders.CaptureAsync(order.Data.Id);
 
-Console.WriteLine(fetched.IsSuccess
-    ? $"Confirmed: order {fetched.Data!.Id} is currently '{fetched.Data.Status}'."
-    : $"Failed to fetch order: {fetched.Error?.Message}");
+if (capture.IsSuccess)
+{
+    Console.WriteLine($"Captured! Payment status: {capture.Data!.Status}");
+}
+else
+{
+    Console.WriteLine($"Capture failed: {capture.Error?.Name} - {capture.Error?.Message}");
+    Console.WriteLine("(If this says ORDER_NOT_APPROVED, the order wasn't actually approved in the browser yet.)");
+}
