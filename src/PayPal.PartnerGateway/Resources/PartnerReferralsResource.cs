@@ -47,16 +47,21 @@ public class PartnerReferralsResource
     /// <paramref name="merchantId"/> is the seller's PayPal merchant ID (or, in some PayPal
     /// accounts, the tracking ID you supplied at referral creation - PayPal accepts either here).
     /// </summary>
+    /// <param name="partnerId">
+    /// Your own PayPal merchant/payer ID as the partner. Omit to use <see cref="PayPalPartnerConfig.PartnerId"/>.
+    /// </param>
+    /// <param name="merchantId">The seller's PayPal merchant ID (or tracking ID).</param>
+    /// <param name="cancellationToken">Cancellation token for the underlying HTTP call.</param>
     public Task<PayPalApiResult<SellerStatus>> GetSellerStatusAsync(
-        string partnerId,
+        string? partnerId,
         string merchantId,
         CancellationToken cancellationToken = default)
     {
-        RequireId(partnerId, nameof(partnerId));
+        var resolvedPartnerId = ResolvePartnerId(partnerId);
         RequireId(merchantId, nameof(merchantId));
         return _gateway.SendAsync<SellerStatus>(
             HttpMethod.Get,
-            $"/v1/customer/partners/{Uri.EscapeDataString(partnerId)}/merchant-integrations/{Uri.EscapeDataString(merchantId)}",
+            $"/v1/customer/partners/{Uri.EscapeDataString(resolvedPartnerId)}/merchant-integrations/{Uri.EscapeDataString(merchantId)}",
             cancellationToken: cancellationToken);
     }
 
@@ -64,13 +69,18 @@ public class PartnerReferralsResource
     /// Lists sellers onboarded under your partner account (3rd-party flow), optionally filtered by
     /// the tracking ID you supplied at referral creation.
     /// </summary>
+    /// <param name="partnerId">
+    /// Your own PayPal merchant/payer ID as the partner. Omit to use <see cref="PayPalPartnerConfig.PartnerId"/>.
+    /// </param>
+    /// <param name="trackingId">Filters to the seller with this tracking ID, if supplied at referral creation.</param>
+    /// <param name="cancellationToken">Cancellation token for the underlying HTTP call.</param>
     public Task<PayPalApiResult<System.Text.Json.Nodes.JsonNode>> ListSellersAsync(
-        string partnerId,
+        string? partnerId = null,
         string? trackingId = null,
         CancellationToken cancellationToken = default)
     {
-        RequireId(partnerId, nameof(partnerId));
-        var path = $"/v1/customer/partners/{Uri.EscapeDataString(partnerId)}/merchant-integrations";
+        var resolvedPartnerId = ResolvePartnerId(partnerId);
+        var path = $"/v1/customer/partners/{Uri.EscapeDataString(resolvedPartnerId)}/merchant-integrations";
         if (!string.IsNullOrWhiteSpace(trackingId))
         {
             path += $"?tracking_id={Uri.EscapeDataString(trackingId)}";
@@ -82,13 +92,18 @@ public class PartnerReferralsResource
     /// Retrieves the connected seller's own REST API Client ID/Secret (1st-party flow only - lets
     /// you call the PayPal APIs directly as the seller instead of via <see cref="AuthAssertion"/>).
     /// </summary>
+    /// <param name="partnerId">
+    /// Your own PayPal merchant/payer ID as the partner. Omit to use <see cref="PayPalPartnerConfig.PartnerId"/>.
+    /// </param>
+    /// <param name="queryParams">Extra query-string parameters PayPal's API reference lists for this call.</param>
+    /// <param name="cancellationToken">Cancellation token for the underlying HTTP call.</param>
     public Task<PayPalApiResult<System.Text.Json.Nodes.JsonNode>> GetSellerCredentialsAsync(
-        string partnerId,
+        string? partnerId = null,
         IDictionary<string, string>? queryParams = null,
         CancellationToken cancellationToken = default)
     {
-        RequireId(partnerId, nameof(partnerId));
-        var path = $"/v1/customer/partners/{Uri.EscapeDataString(partnerId)}/merchant-integrations/credentials";
+        var resolvedPartnerId = ResolvePartnerId(partnerId);
+        var path = $"/v1/customer/partners/{Uri.EscapeDataString(resolvedPartnerId)}/merchant-integrations/credentials";
         if (queryParams is { Count: > 0 })
         {
             var pairs = new List<string>();
@@ -146,6 +161,19 @@ public class PartnerReferralsResource
         }
 
         return PayPalApiResult<System.Text.Json.Nodes.JsonNode>.Failure(response.StatusCode, error, body, null);
+    }
+
+    /// <summary>Falls back to <see cref="PayPalPartnerConfig.PartnerId"/> when <paramref name="partnerId"/> is omitted.</summary>
+    private string ResolvePartnerId(string? partnerId)
+    {
+        var resolved = string.IsNullOrWhiteSpace(partnerId) ? _gateway.Config.PartnerId : partnerId;
+        if (string.IsNullOrWhiteSpace(resolved))
+        {
+            throw new InvalidOperationException(
+                "This call needs a partner ID. Pass one explicitly, or set PayPalPartnerConfig.PartnerId / the PAYPAL_PARTNER_ID environment variable.");
+        }
+
+        return resolved!;
     }
 
     private static void RequireId(string value, string paramName)

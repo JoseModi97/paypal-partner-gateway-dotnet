@@ -1,28 +1,62 @@
-name: Release to NuGet
+name: Build, Test & Publish to NuGet
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to NuGet.org'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
-  publish:
+  build-and-test:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    - uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          8.0.x
+          10.0.x
 
-      - name: Pack
-        run: |
-          dotnet pack src/PayPal.PartnerGateway/PayPal.PartnerGateway.csproj -c Release -o ./artifacts
-          dotnet pack src/PayPal.PartnerGateway.AspNetCore/PayPal.PartnerGateway.AspNetCore.csproj -c Release -o ./artifacts
-          dotnet pack src/PayPal.PartnerGateway.Cli/PayPal.PartnerGateway.Cli.csproj -c Release -o ./artifacts
+    - name: Restore dependencies
+      run: dotnet restore PayPal.PartnerGateway.sln
 
-      - name: Push to NuGet
-        run: dotnet nuget push "./artifacts/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+    - name: Build
+      run: dotnet build PayPal.PartnerGateway.sln --configuration Release --no-restore
+
+    - name: Test
+      run: dotnet test PayPal.PartnerGateway.sln --configuration Release --no-build --verbosity normal
+
+    - name: Pack
+      run: dotnet pack PayPal.PartnerGateway.sln --configuration Release --no-build --output ./artifacts
+
+    - name: Upload Packages Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-packages
+        path: ./artifacts/*.*nupkg
+
+    - name: NuGet Login
+      id: login
+      if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish == 'true'
+      uses: NuGet/login@v1
+      with:
+        user: JoseModi97
+
+    - name: Publish to NuGet.org
+      if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish == 'true'
+      run: |
+        dotnet nuget push "./artifacts/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY || secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate

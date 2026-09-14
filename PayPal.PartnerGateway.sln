@@ -13,6 +13,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PayPal.PartnerGateway.Tests
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PayPal.PartnerGateway.Cli", "src\PayPal.PartnerGateway.Cli\PayPal.PartnerGateway.Cli.csproj", "{A6DE221B-0908-464E-973B-A2B1834C673D}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PayPal.PartnerGateway.Cli.Tests", "tests\PayPal.PartnerGateway.Cli.Tests\PayPal.PartnerGateway.Cli.Tests.csproj", "{CE422D4C-90B0-4060-B9BB-E2E00DD6A728}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{A6DE221B-0908-464E-973B-A2B1834C673D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A6DE221B-0908-464E-973B-A2B1834C673D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A6DE221B-0908-464E-973B-A2B1834C673D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CE422D4C-90B0-4060-B9BB-E2E00DD6A728}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE422D4C-90B0-4060-B9BB-E2E00DD6A728}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE422D4C-90B0-4060-B9BB-E2E00DD6A728}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE422D4C-90B0-4060-B9BB-E2E00DD6A728}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
