@@ -34,7 +34,7 @@ Covers:
 |---|---|---|
 | **`PayPal.PartnerGateway`** | Core client: token management, all resource groups, DTOs | `netstandard2.0`, `net8.0`, `net10.0` |
 | **`PayPal.PartnerGateway.AspNetCore`** | ASP.NET Core DI extensions and Minimal API webhook route builder | `net8.0`, `net10.0` |
-| **`dotnet-paypal-partner-gateway`** | Global CLI tool (`paypal-partner`) that detects your project type and sets everything up | `net8.0` (runs on .NET 8, 9, 10+) |
+| **`dotnet-paypal-partner-gateway`** | Global CLI tool (`paypal-partner`) - interactive setup wizard that auto-detects your project type | `net8.0` (runs on .NET 8, 9, 10+) |
 
 ## Installation
 
@@ -74,16 +74,53 @@ covers every way NuGet.org itself documents installing a package for a project-b
 dotnet tool install --global dotnet-paypal-partner-gateway
 
 cd YourProject      # or a folder with a single app.cs, no .csproj required
-paypal-partner init
+paypal-partner        # 'init' is the default command - launches the wizard
 ```
 
-Pass `--client-id`, `--client-secret`, and `--environment Sandbox|Live` to prefill values,
-or `--dry-run` to preview without changing anything:
+Running it with no arguments launches an **interactive setup wizard** (the same style as
+[`ecitizen-pesaflow init`](https://github.com/JoseModi97/ecitizen-pesaflow-gateway-dotnet)) - it prompts
+for your Client ID, Client Secret (masked input), environment (Sandbox/Live), and optional partner
+settings (BN code, webhook ID), then adds the package(s), writes `appsettings.json`, and generates a
+starter usage file for your project (`Endpoints/PayPalPaymentEndpoints.cs` for ASP.NET Core, or
+`PayPalDemo.cs` for a console app/class library). The one thing it does **not** ask about is which kind
+of project you're in - that's always auto-detected, never a question.
+
+```
+=========================================================
+        PayPal Partner Gateway Setup Wizard (CLI)
+=========================================================
+Detected project: ASP.NET Core (Minimal API / MVC)
+  -> YourProject.csproj
+
+Step 1: PayPal REST API credentials (from the PayPal Developer Dashboard)
+
+Client ID: MY_CLIENT_ID
+Client Secret: ********
+
+Step 2: Environment
+
+Select environment:
+  1) Sandbox - safe for development and testing (default)
+  2) Live - real money, real merchants
+Enter selection (1-2) [1]:
+
+Step 3: Optional partner settings (press Enter to skip)
+
+PayPal-Partner-Attribution-Id / BN code:
+Webhook ID (Webhooks tab in the dashboard):
+
+Apply this configuration now? [Y/n]:
+```
+
+Pass `--yes`/`-y` to skip every prompt and run entirely from flags/environment variables instead (e.g.
+for CI or scripted setup), `--client-id`/`--client-secret`/`--environment`/`--partner-attribution-id`/
+`--webhook-id` to prefill values (shown as defaults in each prompt unless `-y` is used), or `--dry-run`
+to preview without changing anything:
 
 ```bash
-paypal-partner detect                 # show what init would do, without doing it
+paypal-partner detect                 # show what init would detect and install, without doing it
 paypal-partner init --dry-run
-paypal-partner init --client-id ID --client-secret SECRET --environment Sandbox
+paypal-partner init --yes --client-id ID --client-secret SECRET --environment Sandbox
 ```
 
 ---

@@ -9,11 +9,15 @@ using System.Threading.Tasks;
 namespace PayPal.PartnerGateway.Cli;
 
 /// <summary>
-/// Implements <c>paypal-partner init</c>: detects the .NET project (or .NET 10+ file-based app)
-/// in the current directory, adds the right PayPal.PartnerGateway package(s) for it the way that
-/// project actually consumes packages (<c>dotnet add package</c>, or a <c>#:package</c> directive
-/// for a file-based app), wires up configuration for DI-capable hosts, and prints a ready-to-paste
-/// usage snippet - all without asking the user what kind of project they're in.
+/// Implements <c>paypal-partner init</c>: an interactive setup wizard (mirroring the wizard in
+/// ecitizen-pesaflow-gateway-dotnet's CLI) that walks you through PayPal credentials and optional
+/// partner settings, then adds the right package(s) for your project the way that project actually
+/// consumes packages, wires configuration, and scaffolds a starter usage file.
+///
+/// Unlike the eCitizen wizard, this one never asks which framework/architecture you're targeting -
+/// <see cref="FrameworkDetector"/> figures that out from your project and it's simply announced, not
+/// a question. Pass <c>--yes</c>/<c>-y</c> to skip the interactive prompts entirely and run from
+/// flags/environment variables only (e.g. for CI).
 /// </summary>
 public static class InitCommand
 {
@@ -26,9 +30,7 @@ public static class InitCommand
 
     public static async Task<int> RunAsync(string[] args)
     {
-        var options = ParseArgs(args);
         var directory = Directory.GetCurrentDirectory();
-
         var project = FrameworkDetector.Detect(directory);
         if (project == null)
         {
@@ -37,9 +39,46 @@ public static class InitCommand
             return 1;
         }
 
-        Console.WriteLine($"Entry point: {Path.GetFileName(project.ProjectPath)}{(project.IsFileBasedApp ? " (file-based app, no .csproj)" : "")}");
-        Console.WriteLine($"Framework:   {Describe(project.Kind)} ({project.TargetFramework})");
+        var flags = ParseFlags(args);
+        var interactive = !(flags.ContainsKey("yes") || flags.ContainsKey("y"));
+        var dryRun = flags.ContainsKey("dry-run");
+
+        var clientId = flags.GetValueOrDefault("client-id") ?? Environment.GetEnvironmentVariable("PAYPAL_CLIENT_ID") ?? string.Empty;
+        var clientSecret = flags.GetValueOrDefault("client-secret") ?? Environment.GetEnvironmentVariable("PAYPAL_CLIENT_SECRET") ?? string.Empty;
+        var environmentName = flags.GetValueOrDefault("environment") ?? Environment.GetEnvironmentVariable("PAYPAL_ENVIRONMENT") ?? "Sandbox";
+        var partnerAttributionId = flags.GetValueOrDefault("partner-attribution-id") ?? Environment.GetEnvironmentVariable("PAYPAL_PARTNER_ATTRIBUTION_ID") ?? string.Empty;
+        var webhookId = flags.GetValueOrDefault("webhook-id") ?? Environment.GetEnvironmentVariable("PAYPAL_WEBHOOK_ID") ?? string.Empty;
+
+        Console.WriteLine($"Detected project: {Describe(project)}");
+        Console.WriteLine($"  -> {Path.GetFileName(project.ProjectPath)}{(project.IsFileBasedApp ? " (file-based app, no .csproj)" : "")}");
         Console.WriteLine();
+
+        if (interactive)
+        {
+            Console.WriteLine("Step 1: PayPal REST API credentials (from the PayPal Developer Dashboard)\n");
+            clientId = Prompter.Ask("Client ID", clientId, s => !string.IsNullOrWhiteSpace(s), "Client ID cannot be empty.");
+            clientSecret = Prompter.AskSecret("Client Secret", clientSecret, s => !string.IsNullOrWhiteSpace(s), "Client Secret cannot be empty.");
+
+            Console.WriteLine("\nStep 2: Environment\n");
+            environmentName = Prompter.Select("Select environment:", new (string, string)[]
+            {
+                ("Sandbox - safe for development and testing", "Sandbox"),
+                ("Live - real money, real merchants", "Live"),
+            }, environmentName.Equals("Live", StringComparison.OrdinalIgnoreCase) ? 1 : 0);
+
+            Console.WriteLine("\nStep 3: Optional partner settings (press Enter to skip)\n");
+            partnerAttributionId = Prompter.Ask("PayPal-Partner-Attribution-Id / BN code", partnerAttributionId);
+            webhookId = Prompter.Ask("Webhook ID (Webhooks tab in the dashboard)", webhookId);
+
+            Console.WriteLine();
+            if (!Prompter.Confirm("Apply this configuration now?", true))
+            {
+                Console.WriteLine("Setup aborted - nothing was changed.");
+                return 0;
+            }
+
+            Console.WriteLine();
+        }
 
         var packages = new List<string> { "PayPal.PartnerGateway" };
         if (project.HasDependencyInjection)
@@ -47,12 +86,15 @@ public static class InitCommand
             packages.Add("PayPal.PartnerGateway.AspNetCore");
         }
 
-        if (options.DryRun)
+        if (dryRun)
         {
             var via = project.IsFileBasedApp ? "#:package directives" : "dotnet add package";
-            Console.WriteLine($"(--dry-run) Would add via {via}: " + string.Join(", ", packages));
+            Console.WriteLine($"(--dry-run) Would add via {via}: {string.Join(", ", packages)}");
+            Console.WriteLine("(--dry-run) Would write configuration and scaffold a starter file - stopping here.");
+            return 0;
         }
-        else if (project.IsFileBasedApp)
+
+        if (project.IsFileBasedApp)
         {
             InstallIntoFileBasedApp(project, packages);
         }
@@ -61,13 +103,28 @@ public static class InitCommand
             await InstallViaDotnetAddPackageAsync(project, packages).ConfigureAwait(false);
         }
 
-        if (project.HasDependencyInjection && !project.IsFileBasedApp && !options.DryRun)
+        var configOptions = new ConfigOptions
         {
-            WriteAppSettings(directory, options);
+            ClientId = clientId,
+            ClientSecret = clientSecret,
+            Environment = environmentName,
+            PartnerAttributionId = partnerAttributionId,
+            WebhookId = webhookId,
+        };
+
+        if (project.HasDependencyInjection && !project.IsFileBasedApp)
+        {
+            WriteAppSettings(directory, configOptions);
+        }
+
+        var scaffoldedFile = CodeScaffolder.Scaffold(directory, project);
+        if (scaffoldedFile != null)
+        {
+            Console.WriteLine($"Generated starter file: {Path.GetRelativePath(directory, scaffoldedFile)}");
         }
 
         Console.WriteLine();
-        PrintNextSteps(project, options);
+        PrintNextSteps(project, configOptions);
 
         return 0;
     }
@@ -95,7 +152,6 @@ public static class InitCommand
     private static void InstallIntoFileBasedApp(DetectedProject project, List<string> packages)
     {
         var lines = File.ReadAllLines(project.ProjectPath).ToList();
-
         var directivesToAdd = new List<string>();
 
         if (project.Kind == ProjectFrameworkKind.AspNetCoreWeb &&
@@ -117,12 +173,8 @@ public static class InitCommand
             directivesToAdd.Add($"#:package {package}@{PackageVersion}");
         }
 
-        if (directivesToAdd.Count == 0)
-        {
-            return;
-        }
+        if (directivesToAdd.Count == 0) return;
 
-        // Directives must come before any other code, but after any directives already present.
         var insertAt = 0;
         while (insertAt < lines.Count && lines[insertAt].TrimStart().StartsWith("#:", StringComparison.Ordinal))
         {
@@ -138,7 +190,7 @@ public static class InitCommand
         }
     }
 
-    private static void WriteAppSettings(string directory, InitOptions options)
+    private static void WriteAppSettings(string directory, ConfigOptions options)
     {
         var path = Path.Combine(directory, "appsettings.json");
         JsonObject root;
@@ -157,10 +209,13 @@ public static class InitCommand
 
         var section = new JsonObject
         {
-            ["ClientId"] = options.ClientId ?? "YOUR_SANDBOX_CLIENT_ID",
-            ["ClientSecret"] = options.ClientSecret ?? "YOUR_SANDBOX_CLIENT_SECRET",
-            ["Environment"] = options.Environment ?? "Sandbox",
+            ["ClientId"] = string.IsNullOrWhiteSpace(options.ClientId) ? "YOUR_SANDBOX_CLIENT_ID" : options.ClientId,
+            ["ClientSecret"] = string.IsNullOrWhiteSpace(options.ClientSecret) ? "YOUR_SANDBOX_CLIENT_SECRET" : options.ClientSecret,
+            ["Environment"] = string.IsNullOrWhiteSpace(options.Environment) ? "Sandbox" : options.Environment,
         };
+
+        if (!string.IsNullOrWhiteSpace(options.PartnerAttributionId)) section["PartnerAttributionId"] = options.PartnerAttributionId;
+        if (!string.IsNullOrWhiteSpace(options.WebhookId)) section["WebhookId"] = options.WebhookId;
 
         root["PayPalPartner"] = section;
 
@@ -170,7 +225,7 @@ public static class InitCommand
         Console.WriteLine($"Wrote PayPalPartner section to {Path.GetFileName(path)}.");
     }
 
-    private static void PrintNextSteps(DetectedProject project, InitOptions options)
+    private static void PrintNextSteps(DetectedProject project, ConfigOptions options)
     {
         Console.WriteLine("Next steps:");
         Console.WriteLine();
@@ -179,11 +234,7 @@ public static class InitCommand
         {
             case ProjectFrameworkKind.AspNetCoreWeb:
                 Console.WriteLine("  builder.Services.AddPayPalPartnerGateway(builder.Configuration);");
-                Console.WriteLine();
-                Console.WriteLine("  app.MapPayPalPartnerWebhook(\"/webhooks/paypal\", onSuccess: async (result, ctx) =>");
-                Console.WriteLine("  {");
-                Console.WriteLine("      // handle result.Event");
-                Console.WriteLine("  });");
+                Console.WriteLine("  app.MapPayPalPaymentEndpoints();   // from the generated Endpoints/PayPalPaymentEndpoints.cs");
                 if (project.IsFileBasedApp)
                 {
                     Console.WriteLine();
@@ -198,11 +249,14 @@ public static class InitCommand
                 break;
 
             default:
+                Console.WriteLine("  Try it: call PayPalDemo.RunAsync() from the generated PayPalDemo.cs,");
+                Console.WriteLine("  or build your own client:");
+                Console.WriteLine();
                 Console.WriteLine("  var client = new PayPal.PartnerGateway.PayPalPartnerClient(new PayPal.PartnerGateway.PayPalPartnerConfig");
                 Console.WriteLine("  {");
-                Console.WriteLine($"      ClientId = \"{options.ClientId ?? "YOUR_CLIENT_ID"}\",");
-                Console.WriteLine($"      ClientSecret = \"{options.ClientSecret ?? "YOUR_CLIENT_SECRET"}\",");
-                Console.WriteLine($"      Environment = PayPal.PartnerGateway.PayPalEnvironment.{options.Environment ?? "Sandbox"},");
+                Console.WriteLine($"      ClientId = \"{(string.IsNullOrWhiteSpace(options.ClientId) ? "YOUR_CLIENT_ID" : options.ClientId)}\",");
+                Console.WriteLine($"      ClientSecret = \"{(string.IsNullOrWhiteSpace(options.ClientSecret) ? "YOUR_CLIENT_SECRET" : options.ClientSecret)}\",");
+                Console.WriteLine($"      Environment = PayPal.PartnerGateway.PayPalEnvironment.{(string.IsNullOrWhiteSpace(options.Environment) ? "Sandbox" : options.Environment)},");
                 Console.WriteLine("  });");
                 Console.WriteLine();
                 Console.WriteLine("  Or set PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_ENVIRONMENT environment variables and use 'new PayPalPartnerClient()'.");
@@ -213,7 +267,7 @@ public static class InitCommand
         Console.WriteLine("Full docs: https://github.com/JoseModi97/paypal-partner-gateway-dotnet");
     }
 
-    private static string Describe(ProjectFrameworkKind kind) => kind switch
+    private static string Describe(DetectedProject project) => project.Kind switch
     {
         ProjectFrameworkKind.AspNetCoreWeb => "ASP.NET Core (Minimal API / MVC)",
         ProjectFrameworkKind.WorkerService => "Worker Service / Generic Host",
@@ -222,37 +276,38 @@ public static class InitCommand
         _ => "Unrecognized project type - defaulting to console-style usage",
     };
 
-    private static InitOptions ParseArgs(string[] args)
+    private static Dictionary<string, string> ParseFlags(string[] args)
     {
-        var options = new InitOptions();
-
+        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < args.Length; i++)
         {
-            switch (args[i])
+            var arg = args[i];
+            if (arg.StartsWith("--", StringComparison.Ordinal))
             {
-                case "--client-id" when i + 1 < args.Length:
-                    options.ClientId = args[++i];
-                    break;
-                case "--client-secret" when i + 1 < args.Length:
-                    options.ClientSecret = args[++i];
-                    break;
-                case "--environment" when i + 1 < args.Length:
-                    options.Environment = args[++i];
-                    break;
-                case "--dry-run":
-                    options.DryRun = true;
-                    break;
+                var key = arg[2..];
+                if (i + 1 < args.Length && !args[i + 1].StartsWith("-", StringComparison.Ordinal))
+                {
+                    dict[key] = args[++i];
+                }
+                else
+                {
+                    dict[key] = "true";
+                }
+            }
+            else if (arg.StartsWith('-'))
+            {
+                dict[arg[1..]] = "true";
             }
         }
-
-        return options;
+        return dict;
     }
 
-    private class InitOptions
+    private class ConfigOptions
     {
         public string? ClientId { get; set; }
         public string? ClientSecret { get; set; }
         public string? Environment { get; set; }
-        public bool DryRun { get; set; }
+        public string? PartnerAttributionId { get; set; }
+        public string? WebhookId { get; set; }
     }
 }

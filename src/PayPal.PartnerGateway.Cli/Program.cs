@@ -1,38 +1,82 @@
 using System;
+using System.Reflection;
 using System.Threading.Tasks;
 using PayPal.PartnerGateway.Cli;
 
-if (args.Length == 0 || args[0] is "-h" or "--help")
+var command = args.Length > 0 ? args[0] : "init";
+var rest = args.Length > 1 ? args[1..] : Array.Empty<string>();
+
+if (command is "-h" or "--help" or "help")
 {
     PrintHelp();
     return 0;
 }
 
-return args[0] switch
+if (command is "-v" or "--version" or "version")
 {
-    "init" => await InitCommand.RunAsync(args[1..]),
-    "detect" => DetectCommand.Run(),
-    _ => Unknown(args[0]),
-};
+    var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+    Console.WriteLine($"paypal-partner v{version}");
+    return 0;
+}
 
-static int Unknown(string command)
+PrintBanner();
+
+try
 {
-    Console.Error.WriteLine($"Unknown command '{command}'.");
+    return command.ToLowerInvariant() switch
+    {
+        "init" => await InitCommand.RunAsync(rest),
+        "detect" => DetectCommand.Run(),
+        _ => Unknown(command),
+    };
+}
+catch (Exception ex)
+{
+    Console.ForegroundColor = ConsoleColor.Red;
+    Console.WriteLine($"\nError: {ex.Message}");
+    Console.ResetColor();
+    return 1;
+}
+
+static int Unknown(string cmd)
+{
+    Console.Error.WriteLine($"Unknown command '{cmd}'.\n");
     PrintHelp();
     return 1;
 }
 
+static void PrintBanner()
+{
+    Console.WriteLine("=========================================================");
+    Console.WriteLine("        PayPal Partner Gateway Setup Wizard (CLI)");
+    Console.WriteLine("=========================================================");
+}
+
 static void PrintHelp()
 {
-    Console.WriteLine("paypal-partner - setup helper for PayPal.PartnerGateway");
-    Console.WriteLine();
-    Console.WriteLine("Usage:");
-    Console.WriteLine("  paypal-partner init [--client-id ID] [--client-secret SECRET] [--environment Sandbox|Live] [--dry-run]");
-    Console.WriteLine("      Detects the .NET project in the current directory (ASP.NET Core, Worker Service,");
-    Console.WriteLine("      console app, or class library), adds the matching PayPal.PartnerGateway package(s)");
-    Console.WriteLine("      via 'dotnet add package', wires appsettings.json for DI-capable hosts, and prints");
-    Console.WriteLine("      a ready-to-paste usage snippet for the detected framework.");
-    Console.WriteLine();
-    Console.WriteLine("  paypal-partner detect");
-    Console.WriteLine("      Shows what 'init' would detect and install, without changing anything.");
+    Console.WriteLine(@"
+paypal-partner - setup helper for PayPal.PartnerGateway
+
+Usage:
+  paypal-partner [init]          Interactive setup wizard (default when run with no command)
+  paypal-partner detect          Show what 'init' would detect and install, without changing anything
+  paypal-partner --help          Show this help
+  paypal-partner --version       Show version
+
+'init' auto-detects your project (ASP.NET Core, Worker Service, console app, class library, or a
+.NET 10+ file-based app with no .csproj) - it never asks which one you're in. It then interactively
+walks you through your PayPal credentials and optional partner settings, adds the matching
+PayPal.PartnerGateway package(s) the way your project actually consumes packages ('dotnet add package',
+or a #:package directive for a file-based app), wires appsettings.json for DI-capable hosts, and
+scaffolds a starter usage file.
+
+Options for 'init':
+  --client-id <id>                  PayPal Client ID (skips that prompt)
+  --client-secret <secret>          PayPal Client Secret (skips that prompt)
+  --environment <Sandbox|Live>      Target environment (skips that prompt)
+  --partner-attribution-id <bn>     PayPal-Partner-Attribution-Id / BN code (optional)
+  --webhook-id <id>                 Webhook ID from the Webhooks tab (optional)
+  --yes, -y                         Skip all interactive prompts - use flags/environment variables only
+  --dry-run                         Show what would happen, without changing anything
+");
 }
