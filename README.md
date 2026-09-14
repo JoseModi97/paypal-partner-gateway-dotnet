@@ -149,6 +149,24 @@ paypal-partner init --dry-run
 paypal-partner init --yes --client-id ID --client-secret SECRET --environment Sandbox
 ```
 
+### Trying the API without writing any code
+
+`paypal-partner order` calls the real Orders API directly from the terminal - useful for a quick
+Sandbox sanity check before wiring anything into your own app. It resolves credentials the same way
+`init` writes them: explicit flags, then `PAYPAL_*` environment variables, then the `PayPalPartner`
+section of an `appsettings.json` in the current directory - so it just works right after `init`.
+
+```bash
+paypal-partner order create --amount 10.00 --description "Test order"
+# Order ID:      8P4...
+# Approval URL:  https://www.sandbox.paypal.com/checkoutnow?token=8P4...
+#
+# Open the approval URL, log in as a Sandbox buyer, click Pay Now, then:
+
+paypal-partner order capture 8P4...
+paypal-partner order get 8P4...
+```
+
 ---
 
 ## Quickstart: ASP.NET Core Minimal APIs

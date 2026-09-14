@@ -14,21 +14,25 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>paypal-partner</ToolCommandName>
     <PackageId>dotnet-paypal-partner-gateway</PackageId>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <Authors>Jose Modi</Authors>
     <Company>Jose Modi</Company>
     <Copyright>Copyright (c) 2026 Jose Modi</Copyright>
     <Title>PayPal Partner Gateway Setup CLI</Title>
-    <Description>Global .NET tool that sets up PayPal.PartnerGateway in your project automatically: detects whether you're in an ASP.NET Core app, Worker Service, console app, or class library and installs/configures the right package(s) for it - no --framework flag needed.</Description>
+    <Description>Global .NET tool that sets up PayPal.PartnerGateway in your project automatically: detects whether you're in an ASP.NET Core app, Worker Service, console app, or class library and installs/configures the right package(s) for it - no --framework flag needed. Also includes 'order create/get/capture' commands to exercise the real Orders API straight from the terminal.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/JoseModi97/paypal-partner-gateway-dotnet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/JoseModi97/paypal-partner-gateway-dotnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>paypal;paypal-api;dotnet-tool;cli;scaffolding;aspnetcore;dotnet;csharp</PackageTags>
-    <PackageReleaseNotes>1.0.1: Fixed the #:package directive version used when setting up a file-based app - it was pinned to 1.0.0, now matches the current PayPal.PartnerGateway release (1.0.1). 1.0.0: Initial release - 'init' and 'detect' commands with automatic project-framework detection.</PackageReleaseNotes>
+    <PackageReleaseNotes>1.1.0: Added 'order create/get/capture' commands - create, fetch, and capture a real Order directly from the terminal, resolving credentials from flags, PAYPAL_* environment variables, or an appsettings.json 'init' already wrote. 1.0.1: Fixed the #:package directive version used when setting up a file-based app - it was pinned to 1.0.0, now matches the current PayPal.PartnerGateway release (1.0.1). 1.0.0: Initial release - 'init' and 'detect' commands with automatic project-framework detection.</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PayPal.PartnerGateway\PayPal.PartnerGateway.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />

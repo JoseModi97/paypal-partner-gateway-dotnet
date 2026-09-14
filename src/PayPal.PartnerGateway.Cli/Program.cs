@@ -29,6 +29,7 @@ if (args.Length == 0)
     {
         ("Set up this project (init)", "init"),
         ("Detect project type only, don't change anything (detect)", "detect"),
+        ("Create a test order against the live API (order create)", "order"),
         ("Exit", "exit"),
     }, defaultIndex: 0);
     rest = Array.Empty<string>();
@@ -51,6 +52,7 @@ try
     {
         "init" => await InitCommand.RunAsync(rest),
         "detect" => DetectCommand.Run(),
+        "order" => await OrderCommand.RunAsync(rest.Length > 0 ? rest : new[] { "create" }),
         _ => Unknown(command),
     };
 }
@@ -82,11 +84,14 @@ static void PrintHelp()
 paypal-partner - setup helper for PayPal.PartnerGateway
 
 Usage:
-  paypal-partner                 Show an interactive menu (init / detect / exit)
-  paypal-partner init            Run the setup wizard directly
-  paypal-partner detect          Show what 'init' would detect and install, without changing anything
-  paypal-partner --help          Show this help
-  paypal-partner --version       Show version
+  paypal-partner                       Show an interactive menu (init / detect / order / exit)
+  paypal-partner init                  Run the setup wizard directly
+  paypal-partner detect                Show what 'init' would detect and install, without changing anything
+  paypal-partner order create          Create a real order against the API and print its approval URL
+  paypal-partner order get <id>        Fetch an order's current status as JSON
+  paypal-partner order capture <id>    Capture an approved order (completes the payment)
+  paypal-partner --help                Show this help
+  paypal-partner --version             Show version
 
 'init' auto-detects your project (ASP.NET Core, Worker Service, console app, class library, or a
 .NET 10+ file-based app with no .csproj) - it never asks which one you're in. It then interactively
@@ -109,5 +114,18 @@ Options for 'init':
   --yes, -y                         Skip all interactive prompts - use flags/environment variables only
   --force                           Overwrite an existing starter file without asking
   --dry-run                         Show what would happen, without changing anything
+
+Options for 'order' (any subcommand) - credentials are resolved in this order:
+explicit flags below, then PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET/PAYPAL_ENVIRONMENT environment
+variables, then the PayPalPartner section of an appsettings.json in the current directory (the
+same file 'init' writes) - so 'order create' just works right after 'init' with no extra flags:
+  --client-id <id>                  PayPal Client ID
+  --client-secret <secret>          PayPal Client Secret
+  --environment <Sandbox|Live>      Target environment (default: Sandbox)
+
+Options for 'order create' specifically:
+  --amount <n>                      Order amount (default: 10.00)
+  --currency <code>                 Currency code (default: USD)
+  --description <text>              Purchase unit description
 ");
 }
