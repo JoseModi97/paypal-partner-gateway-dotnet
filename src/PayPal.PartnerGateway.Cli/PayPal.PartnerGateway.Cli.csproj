@@ -14,7 +14,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>paypal-partner</ToolCommandName>
     <PackageId>dotnet-paypal-partner-gateway</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Jose Modi</Authors>
     <Company>Jose Modi</Company>
     <Copyright>Copyright (c) 2026 Jose Modi</Copyright>
@@ -25,7 +25,7 @@
     <RepositoryUrl>https://github.com/JoseModi97/paypal-partner-gateway-dotnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>paypal;paypal-api;dotnet-tool;cli;scaffolding;aspnetcore;dotnet;csharp</PackageTags>
-    <PackageReleaseNotes>1.0.0: Initial release - 'init' and 'detect' commands with automatic project-framework detection.</PackageReleaseNotes>
+    <PackageReleaseNotes>1.0.1: Fixed the #:package directive version used when setting up a file-based app - it was pinned to 1.0.0, now matches the current PayPal.PartnerGateway release (1.0.1). 1.0.0: Initial release - 'init' and 'detect' commands with automatic project-framework detection.</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>

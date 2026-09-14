@@ -31,7 +31,7 @@ public static class InitCommand
     /// PackageReference for <c>dotnet add package</c> to resolve "latest" against for those. Keep
     /// this in sync with the shipped package version.
     /// </summary>
-    private const string PackageVersion = "1.0.0";
+    private const string PackageVersion = "1.0.1";
 
     public static async Task<int> RunAsync(string[] args)
     {
