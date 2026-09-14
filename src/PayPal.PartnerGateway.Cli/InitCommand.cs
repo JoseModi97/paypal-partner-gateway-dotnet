@@ -18,6 +18,11 @@ namespace PayPal.PartnerGateway.Cli;
 /// <see cref="FrameworkDetector"/> figures that out from your project and it's simply announced, not
 /// a question. Pass <c>--yes</c>/<c>-y</c> to skip the interactive prompts entirely and run from
 /// flags/environment variables only (e.g. for CI).
+///
+/// Re-running it is safe, Gii-style: <see cref="ExistingSetup"/> detects a prior run (an existing
+/// "PayPalPartner" appsettings.json section, or an existing #:package directive) and pre-fills those
+/// values as defaults instead of starting from a blank slate, and asks before overwriting anything
+/// that already exists rather than silently clobbering it.
 /// </summary>
 public static class InitCommand
 {
@@ -42,16 +47,27 @@ public static class InitCommand
         var flags = ParseFlags(args);
         var interactive = !(flags.ContainsKey("yes") || flags.ContainsKey("y"));
         var dryRun = flags.ContainsKey("dry-run");
+        var force = flags.ContainsKey("force");
 
-        var clientId = flags.GetValueOrDefault("client-id") ?? Environment.GetEnvironmentVariable("PAYPAL_CLIENT_ID") ?? string.Empty;
-        var clientSecret = flags.GetValueOrDefault("client-secret") ?? Environment.GetEnvironmentVariable("PAYPAL_CLIENT_SECRET") ?? string.Empty;
-        var environmentName = flags.GetValueOrDefault("environment") ?? Environment.GetEnvironmentVariable("PAYPAL_ENVIRONMENT") ?? "Sandbox";
-        var partnerAttributionId = flags.GetValueOrDefault("partner-attribution-id") ?? Environment.GetEnvironmentVariable("PAYPAL_PARTNER_ATTRIBUTION_ID") ?? string.Empty;
-        var webhookId = flags.GetValueOrDefault("webhook-id") ?? Environment.GetEnvironmentVariable("PAYPAL_WEBHOOK_ID") ?? string.Empty;
+        var existing = project.IsFileBasedApp ? null : ExistingSetup.ReadAppSettings(directory);
+        var packageAlreadyReferenced = project.IsFileBasedApp
+            && ExistingSetup.FileBasedAppReferencesPackage(project.ProjectPath, "PayPal.PartnerGateway");
 
         Console.WriteLine($"Detected project: {Describe(project)}");
         Console.WriteLine($"  -> {Path.GetFileName(project.ProjectPath)}{(project.IsFileBasedApp ? " (file-based app, no .csproj)" : "")}");
+
+        if (existing != null || packageAlreadyReferenced)
+        {
+            Console.WriteLine("  -> Existing PayPal.PartnerGateway setup detected - values below are pre-filled from it.");
+        }
+
         Console.WriteLine();
+
+        var clientId = flags.GetValueOrDefault("client-id") ?? Environment.GetEnvironmentVariable("PAYPAL_CLIENT_ID") ?? existing?.ClientId ?? string.Empty;
+        var clientSecret = flags.GetValueOrDefault("client-secret") ?? Environment.GetEnvironmentVariable("PAYPAL_CLIENT_SECRET") ?? existing?.ClientSecret ?? string.Empty;
+        var environmentName = flags.GetValueOrDefault("environment") ?? Environment.GetEnvironmentVariable("PAYPAL_ENVIRONMENT") ?? existing?.Environment ?? "Sandbox";
+        var partnerAttributionId = flags.GetValueOrDefault("partner-attribution-id") ?? Environment.GetEnvironmentVariable("PAYPAL_PARTNER_ATTRIBUTION_ID") ?? existing?.PartnerAttributionId ?? string.Empty;
+        var webhookId = flags.GetValueOrDefault("webhook-id") ?? Environment.GetEnvironmentVariable("PAYPAL_WEBHOOK_ID") ?? existing?.WebhookId ?? string.Empty;
 
         if (interactive)
         {
@@ -103,7 +119,7 @@ public static class InitCommand
             await InstallViaDotnetAddPackageAsync(project, packages).ConfigureAwait(false);
         }
 
-        var configOptions = new ConfigOptions
+        var config = new SetupConfig
         {
             ClientId = clientId,
             ClientSecret = clientSecret,
@@ -114,17 +130,42 @@ public static class InitCommand
 
         if (project.HasDependencyInjection && !project.IsFileBasedApp)
         {
-            WriteAppSettings(directory, configOptions);
+            var shouldWrite = true;
+            if (existing != null && interactive)
+            {
+                shouldWrite = Prompter.Confirm("PayPalPartner settings already exist in appsettings.json - overwrite with the values above?", true);
+            }
+
+            if (shouldWrite)
+            {
+                WriteAppSettings(directory, config);
+            }
+            else
+            {
+                Console.WriteLine("Kept existing appsettings.json unchanged.");
+            }
         }
 
-        var scaffoldedFile = CodeScaffolder.Scaffold(directory, project);
-        if (scaffoldedFile != null)
+        var scaffoldPath = CodeScaffolder.GetTargetPath(directory, project);
+        if (scaffoldPath != null)
         {
-            Console.WriteLine($"Generated starter file: {Path.GetRelativePath(directory, scaffoldedFile)}");
+            var alreadyExists = File.Exists(scaffoldPath);
+            var shouldScaffold = !alreadyExists || force || (interactive && Prompter.Confirm(
+                $"{Path.GetRelativePath(directory, scaffoldPath)} already exists - overwrite it?", false));
+
+            if (shouldScaffold)
+            {
+                var written = CodeScaffolder.Scaffold(directory, project);
+                Console.WriteLine($"{(alreadyExists ? "Overwrote" : "Generated")} starter file: {Path.GetRelativePath(directory, written!)}");
+            }
+            else
+            {
+                Console.WriteLine($"Skipped {Path.GetRelativePath(directory, scaffoldPath)} (already exists) - pass --force to overwrite.");
+            }
         }
 
         Console.WriteLine();
-        PrintNextSteps(project, configOptions);
+        PrintNextSteps(project, config);
 
         return 0;
     }
@@ -147,7 +188,9 @@ public static class InitCommand
     /// <c>#:package Id@Version</c> directive lines at the top of the file instead. ASP.NET Core
     /// hosting inside a file-based app also needs a <c>#:sdk Microsoft.NET.Sdk.Web</c> directive
     /// (the default SDK there is the plain console one) for the AspNetCore package's
-    /// FrameworkReference to resolve, so that's added too when needed.
+    /// FrameworkReference to resolve, so that's added too when needed. Directives already present
+    /// are left untouched (never duplicated) - that's the file-based equivalent of "don't clobber
+    /// what's already there".
     /// </summary>
     private static void InstallIntoFileBasedApp(DetectedProject project, List<string> packages)
     {
@@ -162,9 +205,7 @@ public static class InitCommand
 
         foreach (var package in packages)
         {
-            var alreadyPresent = lines.Any(l => l.TrimStart().StartsWith($"#:package {package}@", StringComparison.OrdinalIgnoreCase)
-                                                 || l.TrimStart().Equals($"#:package {package}", StringComparison.OrdinalIgnoreCase));
-            if (alreadyPresent)
+            if (ExistingSetup.FileBasedAppReferencesPackage(project.ProjectPath, package))
             {
                 Console.WriteLine($"{package} is already referenced in {Path.GetFileName(project.ProjectPath)}.");
                 continue;
@@ -190,7 +231,7 @@ public static class InitCommand
         }
     }
 
-    private static void WriteAppSettings(string directory, ConfigOptions options)
+    private static void WriteAppSettings(string directory, SetupConfig config)
     {
         var path = Path.Combine(directory, "appsettings.json");
         JsonObject root;
@@ -209,13 +250,13 @@ public static class InitCommand
 
         var section = new JsonObject
         {
-            ["ClientId"] = string.IsNullOrWhiteSpace(options.ClientId) ? "YOUR_SANDBOX_CLIENT_ID" : options.ClientId,
-            ["ClientSecret"] = string.IsNullOrWhiteSpace(options.ClientSecret) ? "YOUR_SANDBOX_CLIENT_SECRET" : options.ClientSecret,
-            ["Environment"] = string.IsNullOrWhiteSpace(options.Environment) ? "Sandbox" : options.Environment,
+            ["ClientId"] = string.IsNullOrWhiteSpace(config.ClientId) ? "YOUR_SANDBOX_CLIENT_ID" : config.ClientId,
+            ["ClientSecret"] = string.IsNullOrWhiteSpace(config.ClientSecret) ? "YOUR_SANDBOX_CLIENT_SECRET" : config.ClientSecret,
+            ["Environment"] = string.IsNullOrWhiteSpace(config.Environment) ? "Sandbox" : config.Environment,
         };
 
-        if (!string.IsNullOrWhiteSpace(options.PartnerAttributionId)) section["PartnerAttributionId"] = options.PartnerAttributionId;
-        if (!string.IsNullOrWhiteSpace(options.WebhookId)) section["WebhookId"] = options.WebhookId;
+        if (!string.IsNullOrWhiteSpace(config.PartnerAttributionId)) section["PartnerAttributionId"] = config.PartnerAttributionId;
+        if (!string.IsNullOrWhiteSpace(config.WebhookId)) section["WebhookId"] = config.WebhookId;
 
         root["PayPalPartner"] = section;
 
@@ -225,7 +266,7 @@ public static class InitCommand
         Console.WriteLine($"Wrote PayPalPartner section to {Path.GetFileName(path)}.");
     }
 
-    private static void PrintNextSteps(DetectedProject project, ConfigOptions options)
+    private static void PrintNextSteps(DetectedProject project, SetupConfig config)
     {
         Console.WriteLine("Next steps:");
         Console.WriteLine();
@@ -254,9 +295,9 @@ public static class InitCommand
                 Console.WriteLine();
                 Console.WriteLine("  var client = new PayPal.PartnerGateway.PayPalPartnerClient(new PayPal.PartnerGateway.PayPalPartnerConfig");
                 Console.WriteLine("  {");
-                Console.WriteLine($"      ClientId = \"{(string.IsNullOrWhiteSpace(options.ClientId) ? "YOUR_CLIENT_ID" : options.ClientId)}\",");
-                Console.WriteLine($"      ClientSecret = \"{(string.IsNullOrWhiteSpace(options.ClientSecret) ? "YOUR_CLIENT_SECRET" : options.ClientSecret)}\",");
-                Console.WriteLine($"      Environment = PayPal.PartnerGateway.PayPalEnvironment.{(string.IsNullOrWhiteSpace(options.Environment) ? "Sandbox" : options.Environment)},");
+                Console.WriteLine($"      ClientId = \"{(string.IsNullOrWhiteSpace(config.ClientId) ? "YOUR_CLIENT_ID" : config.ClientId)}\",");
+                Console.WriteLine($"      ClientSecret = \"{(string.IsNullOrWhiteSpace(config.ClientSecret) ? "YOUR_CLIENT_SECRET" : config.ClientSecret)}\",");
+                Console.WriteLine($"      Environment = PayPal.PartnerGateway.PayPalEnvironment.{(string.IsNullOrWhiteSpace(config.Environment) ? "Sandbox" : config.Environment)},");
                 Console.WriteLine("  });");
                 Console.WriteLine();
                 Console.WriteLine("  Or set PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_ENVIRONMENT environment variables and use 'new PayPalPartnerClient()'.");
@@ -300,14 +341,5 @@ public static class InitCommand
             }
         }
         return dict;
-    }
-
-    private class ConfigOptions
-    {
-        public string? ClientId { get; set; }
-        public string? ClientSecret { get; set; }
-        public string? Environment { get; set; }
-        public string? PartnerAttributionId { get; set; }
-        public string? WebhookId { get; set; }
     }
 }

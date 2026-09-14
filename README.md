@@ -74,16 +74,36 @@ covers every way NuGet.org itself documents installing a package for a project-b
 dotnet tool install --global dotnet-paypal-partner-gateway
 
 cd YourProject      # or a folder with a single app.cs, no .csproj required
-paypal-partner        # 'init' is the default command - launches the wizard
+paypal-partner
 ```
 
-Running it with no arguments launches an **interactive setup wizard** (the same style as
-[`ecitizen-pesaflow init`](https://github.com/JoseModi97/ecitizen-pesaflow-gateway-dotnet)) - it prompts
-for your Client ID, Client Secret (masked input), environment (Sandbox/Live), and optional partner
-settings (BN code, webhook ID), then adds the package(s), writes `appsettings.json`, and generates a
-starter usage file for your project (`Endpoints/PayPalPaymentEndpoints.cs` for ASP.NET Core, or
-`PayPalDemo.cs` for a console app/class library). The one thing it does **not** ask about is which kind
-of project you're in - that's always auto-detected, never a question.
+Running it with no arguments shows a menu:
+
+```
+=========================================================
+        PayPal Partner Gateway Setup Wizard (CLI)
+=========================================================
+What would you like to do?
+  1) Set up this project (init) (default)
+  2) Detect project type only, don't change anything (detect)
+  3) Exit
+Enter selection (1-3) [1]:
+```
+
+Picking **init** (or running `paypal-partner init` directly) launches an **interactive setup wizard**
+(the same style as [`ecitizen-pesaflow init`](https://github.com/JoseModi97/ecitizen-pesaflow-gateway-dotnet))
+- it prompts for your Client ID, Client Secret (masked input), environment (Sandbox/Live), and optional
+partner settings (BN code, webhook ID), then adds the package(s), writes `appsettings.json`, and
+generates a starter usage file for your project (`Endpoints/PayPalPaymentEndpoints.cs` for ASP.NET Core,
+or `PayPalDemo.cs` for a console app/class library). The one thing it does **not** ask about is which
+kind of project you're in - that's always auto-detected, never a question.
+
+**Re-running it is safe**, Gii-style: it detects a prior run (an existing `PayPalPartner` section in
+`appsettings.json`, or an existing `#:package` directive for a file-based app), shows a note that it
+found one, and pre-fills every prompt with those existing values as the default - just press Enter
+through everything to leave your setup untouched. Before it would overwrite anything that already
+exists (the `appsettings.json` section, or the generated starter file), it asks first; pass `--force`
+to skip that confirmation and always overwrite the starter file.
 
 ```
 =========================================================
