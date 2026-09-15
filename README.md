@@ -156,16 +156,33 @@ Sandbox sanity check before wiring anything into your own app. It resolves crede
 `init` writes them: explicit flags, then `PAYPAL_*` environment variables, then the `PayPalPartner`
 section of an `appsettings.json` in the current directory - so it just works right after `init`.
 
+Turning an order into an actual payment is PayPal's own three-step Checkout flow, and step 2 needs
+a human in a browser:
+
+1. **Create** the order - `paypal-partner order create` returns an `approvalUrl`.
+2. **Approve** it - open that URL and log in as a PayPal **Sandbox buyer** account (not the
+   Client ID/Secret above, which identify the platform, not a payer). Get one from your own
+   [PayPal Developer account](https://developer.paypal.com/dashboard/accounts) - a "Personal" test
+   account - then click through to **Pay Now** on the Sandbox checkout page. If the page seems to
+   loop instead of progressing, retry in an incognito/private window - it's a Sandbox session-cookie
+   quirk, unrelated to the order itself.
+3. **Capture** the order - `paypal-partner order capture <orderId>` actually moves the (fake,
+   Sandbox) money and returns a completed payment with a capture ID.
+
 ```bash
 paypal-partner order create --amount 10.00 --description "Test order"
 # Order ID:      8P4...
 # Approval URL:  https://www.sandbox.paypal.com/checkoutnow?token=8P4...
 #
-# Open the approval URL, log in as a Sandbox buyer, click Pay Now, then:
+# Open the approval URL, approve it as a Sandbox buyer, then:
 
 paypal-partner order capture 8P4...
 paypal-partner order get 8P4...
 ```
+
+Calling capture before the order is approved returns an `ORDER_NOT_APPROVED` error - that's PayPal
+telling you step 2 hasn't happened yet, not a problem with the order or the request. The
+[`examples/`](examples) folder shows the same three-step flow wired into each hosting model.
 
 ---
 
