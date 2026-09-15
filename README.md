@@ -24,6 +24,8 @@ Covers:
 - **Vault (Payment Tokens)** - save a payment method and reuse it, including legacy billing-agreement migration.
 - **Apple Pay** domain registration, **Shipment Tracking**, and the limited-release **Managed Accounts** onboarding path.
 - **First-class ASP.NET Core integration** (`AddPayPalPartnerGateway` DI, Minimal API `MapPayPalPartnerWebhook`, and MVC controller helpers).
+- A **CLI tool** (`paypal-partner`) that auto-detects and sets up any project type, *and* can create/approve/capture
+  a real Sandbox order straight from the terminal (`order create`/`order get`/`order capture`) with no code written.
 - An escape hatch (`client.Gateway.SendAsync<T>(...)`) for any PayPal REST endpoint this library hasn't wrapped yet.
 
 ---
@@ -34,7 +36,7 @@ Covers:
 |---|---|---|
 | **`PayPal.PartnerGateway`** | Core client: token management, all resource groups, DTOs | `netstandard2.0`, `net8.0`, `net9.0`, `net10.0` |
 | **`PayPal.PartnerGateway.AspNetCore`** | ASP.NET Core DI extensions and Minimal API webhook route builder | `net8.0`, `net9.0`, `net10.0` |
-| **`dotnet-paypal-partner-gateway`** | Global CLI tool (`paypal-partner`) - interactive setup wizard that auto-detects your project type | `net8.0` (rolls forward to run on .NET 9, 10, and any newer major runtime) |
+| **`dotnet-paypal-partner-gateway`** | Global CLI tool (`paypal-partner`) - interactive setup wizard that auto-detects your project type, plus `order create/get/capture` to exercise the real Orders API from the terminal | `net8.0` (rolls forward to run on .NET 9, 10, and any newer major runtime) |
 
 The core package's `netstandard2.0` target means it also runs on **.NET Framework 4.6.1+**, **.NET Core 2.0+**,
 Mono, Xamarin, and Unity - not just modern .NET - so it slots into most existing .NET codebases regardless
@@ -57,6 +59,23 @@ paypal-partner init
 
 Get your **Client ID** and **Client Secret** from the [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/applications) -
 create a Sandbox app first, then a Live app once you're ready to go live.
+
+### Updating
+
+```bash
+# Library packages
+dotnet add package PayPal.PartnerGateway
+dotnet add package PayPal.PartnerGateway.AspNetCore
+
+# CLI tool
+dotnet tool update --global dotnet-paypal-partner-gateway
+```
+
+`dotnet add package`/`dotnet tool update` (no version pinned) always pull the latest version on NuGet.org.
+Check what you actually have installed with `dotnet list package` (library packages) or
+`paypal-partner --version` (CLI) - a stale CLI in particular can bite you, since it's a separately
+versioned global install that `dotnet restore` never touches; re-run `dotnet tool update -g
+dotnet-paypal-partner-gateway` any time you hit unexpected API behavior before assuming it's a bug.
 
 ---
 
@@ -352,6 +371,10 @@ var order = await client.Orders.CreateAsync(new OrderRequest
 });
 
 Console.WriteLine(order.IsSuccess ? order.Data!.ApprovalUrl : order.Error!.Message);
+
+// Once the buyer has approved it at the approval URL above:
+var capture = await client.Orders.CaptureAsync(order.Data!.Id!);
+Console.WriteLine(capture.IsSuccess ? $"Captured! Status: {capture.Data!.Status}" : capture.Error!.Message);
 ```
 
 ## Verifying a webhook manually (MVC controllers)
