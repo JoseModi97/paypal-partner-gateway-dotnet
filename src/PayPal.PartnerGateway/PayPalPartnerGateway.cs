@@ -123,12 +123,29 @@ public class PayPalPartnerGateway
         string? authAssertion = null,
         CancellationToken cancellationToken = default)
     {
-        HttpContent? content = body != null
-            ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
-            : null;
+        HttpContent? content;
+        if (body != null)
+        {
+            content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
+        }
+        else if (RequiresJsonContentType(method))
+        {
+            // PayPal's REST API expects Content-Type: application/json on POST/PUT/PATCH calls even
+            // when there's nothing to send (e.g. capturing/authorizing an order with no overrides) -
+            // omitting it entirely gets a 415 UNSUPPORTED_MEDIA_TYPE back from their servers.
+            content = new StringContent("{}", Encoding.UTF8, "application/json");
+        }
+        else
+        {
+            content = null;
+        }
 
         return SendRawAsync(method, path, content, headers, authAssertion, cancellationToken);
     }
+
+    private static bool RequiresJsonContentType(HttpMethod method) =>
+        method == HttpMethod.Post || method == HttpMethod.Put
+        || string.Equals(method.Method, "PATCH", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Sends an authenticated request with a pre-built <see cref="HttpContent"/> - use this for

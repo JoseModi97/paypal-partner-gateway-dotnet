@@ -83,4 +83,40 @@ public class GatewayTests
         Assert.Equal("UNPROCESSABLE_ENTITY", result.Error!.Name);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, result.StatusCode);
     }
+
+    // Regression test for a real Sandbox failure: PayPal's API returns 415 UNSUPPORTED_MEDIA_TYPE
+    // for a bodyless POST/PUT/PATCH (e.g. Orders.CaptureAsync/AuthorizeAsync with no overrides)
+    // unless Content-Type: application/json is present - .NET's HttpClient never sends that header
+    // on a request with no content, so the gateway has to attach an empty JSON body itself.
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    public async Task SendAsync_AttachesEmptyJsonBody_ForBodylessWriteMethods(string methodName)
+    {
+        var handler = new FakeHttpMessageHandler(
+            (HttpStatusCode.OK, "{\"access_token\":\"abc123\",\"expires_in\":32400}"),
+            (HttpStatusCode.OK, "{\"id\":\"ORDER-1\",\"status\":\"COMPLETED\"}"));
+        var httpClient = new HttpClient(handler);
+        var gateway = new PayPalPartnerGateway(TestConfig(), httpClient);
+
+        await gateway.SendAsync<Order>(new HttpMethod(methodName), "/v2/checkout/orders/ORDER-1/capture");
+
+        Assert.Equal("application/json", handler.RequestContentTypes[1]);
+        Assert.Equal("{}", handler.RequestBodies[1]);
+    }
+
+    [Fact]
+    public async Task SendAsync_SendsNoBody_ForBodylessGet()
+    {
+        var handler = new FakeHttpMessageHandler(
+            (HttpStatusCode.OK, "{\"access_token\":\"abc123\",\"expires_in\":32400}"),
+            (HttpStatusCode.OK, "{\"id\":\"ORDER-1\",\"status\":\"CREATED\"}"));
+        var httpClient = new HttpClient(handler);
+        var gateway = new PayPalPartnerGateway(TestConfig(), httpClient);
+
+        await gateway.SendAsync<Order>(HttpMethod.Get, "/v2/checkout/orders/ORDER-1");
+
+        Assert.Null(handler.RequestBodies[1]);
+    }
 }

@@ -13,14 +13,25 @@ internal class FakeHttpMessageHandler : HttpMessageHandler
     private readonly Queue<(HttpStatusCode StatusCode, string Body)> _responses;
     public List<HttpRequestMessage> Requests { get; } = new();
 
+    /// <summary>
+    /// The request body read *before* the caller's `using` block disposes the request/content -
+    /// index-aligned with <see cref="Requests"/>. Null for a request with no content.
+    /// </summary>
+    public List<string?> RequestBodies { get; } = new();
+
+    /// <summary>The Content-Type media type of each request, snapshotted for the same reason as <see cref="RequestBodies"/>.</summary>
+    public List<string?> RequestContentTypes { get; } = new();
+
     public FakeHttpMessageHandler(params (HttpStatusCode StatusCode, string Body)[] responses)
     {
         _responses = new Queue<(HttpStatusCode, string)>(responses);
     }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Requests.Add(request);
+        RequestBodies.Add(request.Content == null ? null : await request.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
+        RequestContentTypes.Add(request.Content?.Headers.ContentType?.MediaType);
 
         if (_responses.Count == 0)
         {
@@ -32,6 +43,6 @@ internal class FakeHttpMessageHandler : HttpMessageHandler
         {
             Content = new StringContent(body)
         };
-        return Task.FromResult(response);
+        return response;
     }
 }
