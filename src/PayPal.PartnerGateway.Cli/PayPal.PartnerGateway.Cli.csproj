@@ -14,7 +14,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>paypal-partner</ToolCommandName>
     <PackageId>dotnet-paypal-partner-gateway</PackageId>
-    <Version>1.2.3</Version>
+    <Version>1.2.4</Version>
     <Authors>Jose Modi</Authors>
     <Company>Jose Modi</Company>
     <Copyright>Copyright (c) 2026 Jose Modi</Copyright>
@@ -25,7 +25,7 @@
     <RepositoryUrl>https://github.com/JoseModi97/paypal-partner-gateway-dotnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>paypal;paypal-api;dotnet-tool;cli;scaffolding;aspnetcore;dotnet;csharp</PackageTags>
-    <PackageReleaseNotes>1.2.3: Realigned the package version with the repo's git tag numbering (and with the other two packages, which now share the same version). No code changes. 1.1.1: Expanded the README's Sandbox payment walkthrough for the 'order' command. No code changes. 1.1.0: Added 'order create/get/capture' commands - create, fetch, and capture a real Order directly from the terminal, resolving credentials from flags, PAYPAL_* environment variables, or an appsettings.json 'init' already wrote. 1.0.1: Fixed the #:package directive version used when setting up a file-based app - it was pinned to 1.0.0, now matches the current PayPal.PartnerGateway release (1.0.1). 1.0.0: Initial release - 'init' and 'detect' commands with automatic project-framework detection.</PackageReleaseNotes>
+    <PackageReleaseNotes>1.2.4: README fixes - the order return_url/cancel_url redirect gap and CLI documentation alignment; also clarified that the CLI's own order-testing flow has no return_url by design (no running web app to redirect to). No code changes. 1.2.3: Realigned the package version with the repo's git tag numbering (and with the other two packages, which now share the same version). No code changes. 1.1.1: Expanded the README's Sandbox payment walkthrough for the 'order' command. No code changes. 1.1.0: Added 'order create/get/capture' commands - create, fetch, and capture a real Order directly from the terminal, resolving credentials from flags, PAYPAL_* environment variables, or an appsettings.json 'init' already wrote. 1.0.1: Fixed the #:package directive version used when setting up a file-based app - it was pinned to 1.0.0, now matches the current PayPal.PartnerGateway release (1.0.1). 1.0.0: Initial release - 'init' and 'detect' commands with automatic project-framework detection.</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
