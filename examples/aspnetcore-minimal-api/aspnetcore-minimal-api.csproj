@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="PayPal.PartnerGateway" Version="1.0.1" />
-    <PackageReference Include="PayPal.PartnerGateway.AspNetCore" Version="1.0.1" />
+    <PackageReference Include="PayPal.PartnerGateway" Version="1.2.3" />
+    <PackageReference Include="PayPal.PartnerGateway.AspNetCore" Version="1.2.3" />
   </ItemGroup>
 
 </Project>

@@ -184,7 +184,12 @@ a human in a browser:
    [PayPal Developer account](https://developer.paypal.com/dashboard/accounts) - a "Personal" test
    account - then click through to **Pay Now** on the Sandbox checkout page. If the page seems to
    loop instead of progressing, retry in an incognito/private window - it's a Sandbox session-cookie
-   quirk, unrelated to the order itself.
+   quirk, unrelated to the order itself. **Clicking Pay Now here won't redirect you anywhere or show
+   a confirmation** - the CLI didn't set a `return_url` (there's no running web app for PayPal to
+   send you back to), so you're left on PayPal's own page. That's expected for this terminal-only
+   flow; just proceed to step 3. If your *own app* has this same "nothing happens after Pay Now"
+   problem, see [Quickstart](#quickstart-aspnet-core-minimal-apis) - that's a missing `return_url`
+   on your order, not a bug.
 3. **Capture** the order - `paypal-partner order capture <orderId>` actually moves the (fake,
    Sandbox) money and returns a completed payment with a capture ID.
 
@@ -232,6 +237,7 @@ Or set environment variables instead: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`
 using PayPal.PartnerGateway;
 using PayPal.PartnerGateway.AspNetCore;
 using PayPal.PartnerGateway.Models;
+using System.Text.Json.Nodes;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -241,14 +247,26 @@ builder.Services.AddPayPalPartnerGateway(builder.Configuration);
 var app = builder.Build();
 
 // Create an order.
-app.MapPost("/orders", async (PayPalPartnerClient client) =>
+app.MapPost("/orders", async (HttpRequest request, PayPalPartnerClient client) =>
 {
+    // application_context.return_url/cancel_url tell PayPal's hosted approval page where to
+    // send the buyer back to after they click Pay Now. Omit them and the buyer is left on
+    // PayPal's own page with no redirect and no visible confirmation - the approval (and any
+    // capture you do afterward) still succeeds, it's just invisible to the buyer.
+    var baseUrl = $"{request.Scheme}://{request.Host}";
+
     var order = await client.Orders.CreateAsync(new OrderRequest
     {
         Intent = "CAPTURE",
         PurchaseUnits = new List<PurchaseUnit>
         {
             new() { Amount = new AmountWithBreakdown(26.00m, "USD"), Description = "Order #1042" }
+        },
+        ApplicationContext = new JsonObject
+        {
+            ["return_url"] = $"{baseUrl}/orders/return",
+            ["cancel_url"] = $"{baseUrl}/orders/cancel",
+            ["user_action"] = "PAY_NOW",
         }
     });
 
@@ -257,10 +275,10 @@ app.MapPost("/orders", async (PayPalPartnerClient client) =>
         : Results.BadRequest(new { error = order.Error?.Message, details = order.Error?.Details });
 });
 
-// Capture it once the buyer approves.
-app.MapPost("/orders/{orderId}/capture", async (string orderId, PayPalPartnerClient client) =>
+// PayPal redirects the buyer here after approval, appending ?token={orderId} - capture it directly.
+app.MapGet("/orders/return", async (string token, PayPalPartnerClient client) =>
 {
-    var capture = await client.Orders.CaptureAsync(orderId);
+    var capture = await client.Orders.CaptureAsync(token);
     return capture.IsSuccess ? Results.Ok(capture.Data) : Results.BadRequest(capture.Error);
 });
 
