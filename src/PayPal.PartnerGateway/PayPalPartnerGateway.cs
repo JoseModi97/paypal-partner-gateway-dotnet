@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -28,6 +29,11 @@ public class PayPalPartnerGateway
     {
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        // Set explicitly, not left to the app's default: .NET 10 file-based apps (`dotnet run
+        // app.cs`) and AOT-ready projects turn reflection-based JSON off by default
+        // (JsonSerializerIsReflectionEnabledByDefault=false), and every call then failed with
+        // "Reflection-based serialization has been disabled for this application".
+        TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
     };
 
     public PayPalPartnerConfig Config { get; }
@@ -162,13 +168,57 @@ public class PayPalPartnerGateway
         if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Path is required.", nameof(path));
 
         var url = path.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? path : BaseUrl + path;
+        // One id for the call, kept if it's resent below, so PayPal treats the resend as the same request.
+        var requestId = Guid.NewGuid().ToString("N");
 
+        // A sent request's content is disposed (by HttpClient on .NET Framework, by the request
+        // everywhere), so a resend needs a copy: in-memory bodies (JSON, bytes) are kept as bytes.
+        var replayable = content == null || content is ByteArrayContent;
+        var replayBody = content is ByteArrayContent
+            ? await content.ReadAsByteArrayAsync().ConfigureAwait(false)
+            : null;
+        var replayHeaders = content?.Headers.ToList();
+
+        var result = await SendOnceAsync(method, url, content, headers, authAssertion, requestId, cancellationToken)
+            .ConfigureAwait(false);
+
+        // PayPal can stop accepting a cached token before its expires_in (revoked, credentials
+        // rotated). Without this every call would fail with 401 until the cache expired: get a
+        // fresh token and resend once. A streamed upload can't be resent; its 401 is returned as is.
+        if (result.StatusCode == HttpStatusCode.Unauthorized && replayable)
+        {
+            _tokenCache.Invalidate();
+            HttpContent? again = null;
+            if (replayBody != null)
+            {
+                again = new ByteArrayContent(replayBody);
+                foreach (var header in replayHeaders!)
+                {
+                    again.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+            }
+            result = await SendOnceAsync(method, url, again, headers, authAssertion, requestId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return result;
+    }
+
+    private async Task<RawPayPalResponse> SendOnceAsync(
+        HttpMethod method,
+        string url,
+        HttpContent? content,
+        IDictionary<string, string>? headers,
+        string? authAssertion,
+        string requestId,
+        CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(method, url);
 
         var accessToken = await GetAccessTokenAsync(cancellationToken).ConfigureAwait(false);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        request.Headers.TryAddWithoutValidation("PayPal-Request-Id", Guid.NewGuid().ToString("N"));
+        request.Headers.TryAddWithoutValidation("PayPal-Request-Id", requestId);
 
         if (!string.IsNullOrWhiteSpace(Config.PartnerAttributionId))
         {

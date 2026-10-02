@@ -55,14 +55,25 @@ public class PaymentController : ControllerBase
     }
 
     // PayPal redirects the buyer's browser here after approval, appending ?token={orderId}&PayerID=...
-    // The "token" query param IS the order ID - capture it directly, no need to have stored it yourself.
+    // The "token" query param IS the order ID - no need to have stored it yourself. CompleteAsync
+    // (not CaptureAsync) so a refresh of this page shows the payment instead of failing with
+    // ORDER_ALREADY_CAPTURED.
     [HttpGet("orders/return")]
     public async Task<IActionResult> ReturnFromApproval([FromQuery] string token)
     {
-        var capture = await _client.Orders.CaptureAsync(token);
-        return capture.IsSuccess
-            ? Content($"<h3>Payment successful!</h3><p>Status: {capture.Data!.Status}</p>", "text/html")
-            : Content($"<h3>Capture failed</h3><p>{capture.Error?.Message}</p>", "text/html");
+        var result = await _client.Orders.CompleteAsync(token);
+        if (!result.IsSuccess)
+        {
+            return Content(result.Error?.HasIssue(PayPalIssues.InstrumentDeclined) == true
+                ? "<h3>Payment declined</h3><p>Nothing was charged. Please try again with another card or PayPal.</p>"
+                : $"<h3>Payment failed</h3><p>{result.Error?.Issue ?? result.Error?.Message}</p>", "text/html");
+        }
+
+        // IsPaid, not Status == "COMPLETED": the capture itself can still be PENDING or DECLINED.
+        return Content(result.Data!.IsPaid
+            ? $"<h3>Payment successful!</h3><p>Capture {result.Data.Capture!.Id}: {result.Data.Capture.Amount?.Value} {result.Data.Capture.Amount?.CurrencyCode}</p>"
+            : $"<h3>Payment not completed yet</h3><p>Order {result.Data.Status}, capture {result.Data.Capture?.Status ?? "none"}.</p>",
+            "text/html");
     }
 
     [HttpGet("orders/cancel")]
@@ -76,14 +87,14 @@ public class PaymentController : ControllerBase
         return order.IsSuccess ? Ok(order.Data) : NotFound(new { error = order.Error?.Message });
     }
 
-    // Call this only after a Sandbox buyer has approved the order at its approvalUrl - capturing
-    // before approval fails with an ORDER_NOT_APPROVED error, which is expected, not a bug.
+    // Call this after a Sandbox buyer has approved the order at its approvalUrl. Safe to call more
+    // than once: it captures an APPROVED order (never twice) and otherwise reports where it stands.
     [HttpPost("orders/{orderId}/capture")]
     public async Task<IActionResult> CaptureOrder(string orderId)
     {
-        var capture = await _client.Orders.CaptureAsync(orderId);
-        return capture.IsSuccess
-            ? Ok(capture.Data)
-            : BadRequest(new { error = capture.Error?.Message, details = capture.Error?.Details });
+        var result = await _client.Orders.CompleteAsync(orderId);
+        return result.IsSuccess
+            ? Ok(new { paid = result.Data!.IsPaid, status = result.Data.Status, captureId = result.Data.Capture?.Id })
+            : BadRequest(new { issue = result.Error?.Issue, error = result.Error?.Message });
     }
 }

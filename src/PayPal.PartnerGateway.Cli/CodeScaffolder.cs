@@ -81,11 +81,20 @@ public static class CodeScaffolder
                         : Results.BadRequest(new { error = order.Error?.Message, details = order.Error?.Details });
                 });
 
-                // 2. Capture payment once the buyer has approved the order.
+                // 2. Finish the payment once the buyer has approved the order. CompleteAsync is safe
+                //    to call more than once (a refresh, a retry, a webhook racing it): it captures only
+                //    an APPROVED order and never twice. Fulfil only when IsPaid - an order can read
+                //    COMPLETED while its capture is still PENDING or DECLINED.
                 app.MapPost("/payments/orders/{orderId}/capture", async (string orderId, PayPalPartnerClient client) =>
                 {
-                    var capture = await client.Orders.CaptureAsync(orderId);
-                    return capture.IsSuccess ? Results.Ok(capture.Data) : Results.BadRequest(capture.Error);
+                    var result = await client.Orders.CompleteAsync(orderId);
+                    if (!result.IsSuccess)
+                    {
+                        // Error.Issue is the specific reason: INSTRUMENT_DECLINED (card declined - make a
+                        // new order to retry), ORDER_NOT_APPROVED (buyer hasn't approved yet), ...
+                        return Results.BadRequest(new { issue = result.Error?.Issue, error = result.Error?.Message });
+                    }
+                    return Results.Ok(new { paid = result.Data!.IsPaid, status = result.Data.Status, captureId = result.Data.Capture?.Id });
                 });
 
                 // 3. Receive and verify PayPal webhook notifications.

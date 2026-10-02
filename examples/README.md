@@ -33,13 +33,16 @@ payment is PayPal's own three-step Checkout flow, and step 2 needs a human in a 
    account - then click through to **Pay Now** on the Sandbox checkout page. If the page seems to
    loop instead of progressing, retry in an incognito/private window - it's a Sandbox session-cookie
    quirk, unrelated to the order itself.
-3. **Capture** the order (`client.Orders.CaptureAsync(...)`) - this is the step that actually moves
-   the (fake, Sandbox) money and returns a completed payment with a capture ID.
+3. **Capture** the order (`client.Orders.CompleteAsync(...)`) - this is the step that actually moves
+   the (fake, Sandbox) money and returns a completed payment with a capture ID. `CompleteAsync`
+   captures an approved order and is safe to call again (a page refresh shows the payment instead of
+   failing with `ORDER_ALREADY_CAPTURED`); check `result.Data.IsPaid` before fulfilling.
 
 | Example | How far it goes |
 |---|---|
 | `console-script`, `file-based-app` | All three steps - pauses with `Console.ReadLine()` after printing the approval URL so you can approve it in a browser, then captures and prints the result |
-| `aspnetcore-minimal-api`, `aspnetcore-mvc` | Steps 1 and 3 as separate endpoints - `POST /orders` then, after you approve it in a browser, `POST /orders/{id}/capture` |
+| `aspnetcore-minimal-api`, `aspnetcore-mvc` | Steps 1 and 3 as separate endpoints - `POST /orders` then, after you approve it in a browser, `POST /orders/{id}/capture` (or the `return_url` handler does step 3 for you) |
+| `aspnetcore-minimal-api` `/checkout` | Paying **without leaving the page**: PayPal's own JS buttons (PayPal + "Debit or Credit Card") call the same create/complete endpoints - see [Paying inside your own page](../README.md#paying-inside-your-own-page-modal--no-redirect) |
 | `worker-service` | Step 1 only - a headless worker can't pause for browser approval, so it just creates the order and logs the approval URL |
 
 Prefer the terminal over any of these? The `paypal-partner` CLI's `order` command walks the exact

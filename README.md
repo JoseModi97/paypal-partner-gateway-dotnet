@@ -191,7 +191,8 @@ a human in a browser:
    problem, see [Quickstart](#quickstart-aspnet-core-minimal-apis) - that's a missing `return_url`
    on your order, not a bug.
 3. **Capture** the order - `paypal-partner order capture <orderId>` actually moves the (fake,
-   Sandbox) money and returns a completed payment with a capture ID.
+   Sandbox) money and returns a completed payment with a capture ID. Running it again on a captured
+   order just reports the capture.
 
 ```bash
 paypal-partner order create --amount 10.00 --description "Test order"
@@ -275,11 +276,16 @@ app.MapPost("/orders", async (HttpRequest request, PayPalPartnerClient client) =
         : Results.BadRequest(new { error = order.Error?.Message, details = order.Error?.Details });
 });
 
-// PayPal redirects the buyer here after approval, appending ?token={orderId} - capture it directly.
+// PayPal redirects the buyer here after approval, appending ?token={orderId}. CompleteAsync
+// captures an approved order and is safe to call again - a refresh of this page shows the
+// payment instead of failing with ORDER_ALREADY_CAPTURED.
 app.MapGet("/orders/return", async (string token, PayPalPartnerClient client) =>
 {
-    var capture = await client.Orders.CaptureAsync(token);
-    return capture.IsSuccess ? Results.Ok(capture.Data) : Results.BadRequest(capture.Error);
+    var result = await client.Orders.CompleteAsync(token);
+    if (!result.IsSuccess) return Results.BadRequest(new { issue = result.Error?.Issue });  // e.g. INSTRUMENT_DECLINED
+    return result.Data!.IsPaid                       // the capture completed, not just the order
+        ? Results.Ok(new { paid = true, captureId = result.Data.Capture!.Id })
+        : Results.Ok(new { paid = false, status = result.Data.Status });
 });
 
 // Receive and verify webhook notifications - signature checking is handled for you.
@@ -303,6 +309,92 @@ setup, see [`examples/`](examples).
 Every call returns a `PayPalApiResult<T>` - check `IsSuccess` before reading `Data`; declined payments and
 validation failures come back as an ordinary result with `Error` populated, not an exception. An exception
 (`PayPalApiException`) is only thrown for transport failures (network down, response not valid JSON).
+
+---
+
+## Finishing a payment safely
+
+Capturing is the step that moves the money, and the naive version - call `CaptureAsync` from your
+`return_url` handler - breaks in ordinary situations: the buyer refreshes the page, your webhook and
+the return page race, or a capture response is lost to a timeout. Use `Orders.CompleteAsync`:
+
+```csharp
+var result = await client.Orders.CompleteAsync(orderId);
+
+if (!result.IsSuccess)
+{
+    // Error.Issue is the specific reason (Error.Name is only "UNPROCESSABLE_ENTITY").
+    if (result.Error!.HasIssue(PayPalIssues.InstrumentDeclined))
+    {
+        // Card declined: nothing was charged. Create a NEW order for the buyer's retry.
+    }
+}
+else if (result.Data!.IsPaid)
+{
+    // Money moved. Compare result.Data.Capture.Amount with what you charged, then fulfil.
+}
+else
+{
+    // Not approved yet (CREATED / PAYER_ACTION_REQUIRED), or captured but PENDING at PayPal.
+}
+```
+
+What it does, and why:
+
+- **Reads the order first** and captures only if it's `APPROVED`; anything else is returned as is.
+  Safe to call from your return page, a JS `onApprove`, a webhook and a background reconciler alike.
+- **Captures with a `PayPal-Request-Id` fixed for the order** (`capture-{orderId}`), so two calls
+  racing each other get PayPal's single capture back. (`CaptureAsync(orderId, requestId)` lets you
+  choose your own id for the low-level call.)
+- **Treats `ORDER_ALREADY_CAPTURED` as success**: it reads the order again and returns it.
+- **`Order.IsPaid`** is true only when the order *and its capture* are complete. An order can be
+  `COMPLETED` while its capture is still `PENDING` (held for review, or the receiving account must
+  accept the currency) or `DECLINED` - checking `Status == "COMPLETED"` alone would ship those.
+  `Order.Capture` gives you the capture (id, status, amount).
+
+## Paying inside your own page (modal / no redirect)
+
+**Don't put PayPal's approval page (`ApprovalUrl`) in an `<iframe>` or modal.** The first page loads,
+but browsers block PayPal's sign-in cookies inside another site's frame, so buyers who log in get
+*"Sorry, something went wrong"*. Either redirect the whole page (the `return_url` flow above), or use
+**PayPal's JavaScript buttons**, which PayPal supports inside your own page: *Debit or Credit Card*
+opens its form right in your page/modal, and the PayPal button signs in through PayPal's own small
+popup window. Your server still creates and captures the order with this library:
+
+```html
+<div id="paypal-buttons"></div>
+<!-- Your app's Client ID is public by design; the secret stays on the server. -->
+<script src="https://www.paypal.com/sdk/js?client-id=YOUR_CLIENT_ID&currency=USD&intent=capture&enable-funding=card"></script>
+<script>
+  paypal.Buttons({
+    // Your endpoint: client.Orders.CreateAsync(...) -> return the order id. No return_url needed.
+    createOrder: async () => (await (await fetch('/checkout/orders', { method: 'POST' })).json()).orderId,
+    onApprove: async ({ orderID }) => {
+      // Show a "confirming…" state (and keep the modal open) until your server answers.
+      // Your endpoint: client.Orders.CompleteAsync(orderID) -> return IsPaid / Error.Issue.
+      const r = await (await fetch(`/orders/${orderID}/capture`, { method: 'POST' })).json();
+    },
+  }).render('#paypal-buttons');
+</script>
+```
+
+The `currency` in the script URL must match the order's currency (load one script per currency, e.g.
+with `data-namespace`). A runnable version is the `/checkout` page of
+[`examples/aspnetcore-minimal-api`](examples/aspnetcore-minimal-api).
+
+## Testing in Sandbox
+
+- **Buyer accounts:** <https://developer.paypal.com/dashboard/accounts> - sign in to approve with the
+  **Personal** account (the Business one is the merchant side).
+- **Test cards:** generate them at <https://developer.paypal.com/tools/sandbox/card-testing/> (any
+  future expiry, any CVV). Sandbox declines some numbers on purpose - e.g. `4111 1111 1111 1111` came
+  back `INSTRUMENT_DECLINED` in our testing while `5555 5555 5555 4444` was approved - which makes it
+  easy to test both paths. Force a decline with first name `CCREJECT-REFUSED`
+  ([negative testing](https://developer.paypal.com/tools/sandbox/negative-testing/)).
+- **Use a fresh email on the card form.** The public Sandbox app shipped in `examples/` is shared, so
+  common addresses (`buyer@example.com`) are often already saved with PayPal *Fastlane*, which then
+  asks for a code sent to someone else's phone. Close that box, or use a unique address.
+- In Sandbox, add `&buyer-country=US` to the JS SDK URL so the card button shows wherever you test from.
 
 ---
 
@@ -391,8 +483,10 @@ var order = await client.Orders.CreateAsync(new OrderRequest
 Console.WriteLine(order.IsSuccess ? order.Data!.ApprovalUrl : order.Error!.Message);
 
 // Once the buyer has approved it at the approval URL above:
-var capture = await client.Orders.CaptureAsync(order.Data!.Id!);
-Console.WriteLine(capture.IsSuccess ? $"Captured! Status: {capture.Data!.Status}" : capture.Error!.Message);
+var result = await client.Orders.CompleteAsync(order.Data!.Id!);
+Console.WriteLine(result.IsSuccess && result.Data!.IsPaid
+    ? $"Captured! Capture {result.Data.Capture!.Id}"
+    : $"Not paid: {result.Error?.Issue ?? result.Data?.Status}");
 ```
 
 ## Verifying a webhook manually (MVC controllers)
@@ -432,7 +526,7 @@ is grouped under `client.<Resource>`:
 `CreateManagedAccountAsync` · `SearchByExternalIdAsync` · `GetBySellerIdAsync` · `UpdateAsync` · `GetWalletDomainsAsync` · `UploadVerificationDocumentAsync`
 
 **Checkout / Capture** — `client.Orders`
-`CreateAsync` · `GetAsync` · `ConfirmPaymentSourceAsync` · `AuthorizeAsync` · `CaptureAsync` · `AddTrackingAsync`
+`CreateAsync` · `GetAsync` · `CompleteAsync` · `ConfirmPaymentSourceAsync` · `AuthorizeAsync` · `CaptureAsync` · `AddTrackingAsync`
 
 **Payments** — `client.Payments`
 `GetCaptureAsync` · `GetAuthorizationAsync` · `CaptureAuthorizationAsync` · `RefundCaptureAsync`

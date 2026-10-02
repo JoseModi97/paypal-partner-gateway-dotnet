@@ -72,8 +72,25 @@ public class PurchaseUnit
     [JsonPropertyName("shipping")]
     public JsonNode? Shipping { get; set; }
 
+    /// <summary>
+    /// Response only: the captures/authorizations made against this purchase unit. Ignored on
+    /// requests (it's null unless PayPal sent it).
+    /// </summary>
+    [JsonPropertyName("payments")]
+    public PurchaseUnitPayments? Payments { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, object?>? AdditionalProperties { get; set; }
+}
+
+/// <summary>The <c>payments</c> object of a purchase unit in an order response.</summary>
+public class PurchaseUnitPayments
+{
+    [JsonPropertyName("captures")]
+    public List<Capture>? Captures { get; set; }
+
+    [JsonPropertyName("authorizations")]
+    public List<Authorization>? Authorizations { get; set; }
 }
 
 public class AmountWithBreakdown
@@ -224,4 +241,37 @@ public class Order
             return null;
         }
     }
+
+    /// <summary>
+    /// The order's capture, once it has one (the first capture of the first purchase unit that
+    /// has any). Null before capture.
+    /// </summary>
+    [JsonIgnore]
+    public Capture? Capture
+    {
+        get
+        {
+            if (PurchaseUnits == null) return null;
+            foreach (var unit in PurchaseUnits)
+            {
+                if (unit.Payments?.Captures is { Count: > 0 } captures) return captures[0];
+            }
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// True only when the money actually moved: the order is <c>COMPLETED</c> <em>and</em> its
+    /// capture is <c>COMPLETED</c> (or <c>PARTIALLY_REFUNDED</c>: captured in full, part refunded
+    /// since). An order can be COMPLETED while its capture is still
+    /// <c>PENDING</c> (held for review, or the receiving account must accept the currency) or
+    /// <c>DECLINED</c> - checking <see cref="Status"/> alone would mark those as paid.
+    /// Also compare <see cref="Capture"/>'s amount with what you charged before fulfilling.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsPaid =>
+        string.Equals(Status, "COMPLETED", System.StringComparison.OrdinalIgnoreCase)
+        && Capture is { } capture
+        && (string.Equals(capture.Status, "COMPLETED", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(capture.Status, "PARTIALLY_REFUNDED", System.StringComparison.OrdinalIgnoreCase));
 }

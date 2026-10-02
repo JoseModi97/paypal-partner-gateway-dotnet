@@ -21,8 +21,9 @@ public static class AuthAssertion
         if (string.IsNullOrWhiteSpace(clientId)) throw new ArgumentException("Client ID is required.", nameof(clientId));
         if (string.IsNullOrWhiteSpace(merchantPayerId)) throw new ArgumentException("Merchant payer ID is required.", nameof(merchantPayerId));
 
-        var header = Base64UrlEncode(JsonSerializer.Serialize(new { alg = "none" }));
-        var payload = Base64UrlEncode(JsonSerializer.Serialize(new { iss = clientId, payer_id = merchantPayerId }));
+        // The gateway's options, so this works in apps that turn reflection-based JSON off by default.
+        var header = Base64UrlEncode(JsonSerializer.Serialize(new { alg = "none" }, PayPalPartnerGateway.JsonOptions));
+        var payload = Base64UrlEncode(JsonSerializer.Serialize(new { iss = clientId, payer_id = merchantPayerId }, PayPalPartnerGateway.JsonOptions));
 
         return $"{header}.{payload}.";
     }

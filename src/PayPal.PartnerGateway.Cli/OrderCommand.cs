@@ -114,16 +114,32 @@ public static class OrderCommand
             return 1;
         }
 
-        var capture = await client.Orders.CaptureAsync(rest[0]);
-        if (!capture.IsSuccess)
+        // CompleteAsync, not CaptureAsync: running the command again on a captured order reports
+        // it instead of failing with ORDER_ALREADY_CAPTURED.
+        var result = await client.Orders.CompleteAsync(rest[0]);
+        if (!result.IsSuccess)
         {
-            Console.Error.WriteLine($"Capture failed: {capture.Error?.Name} - {capture.Error?.Message}");
-            Console.Error.WriteLine("(ORDER_NOT_APPROVED means the buyer hasn't approved it at the approval URL yet.)");
+            Console.Error.WriteLine($"Capture failed: {result.Error?.Issue ?? result.Error?.Name} - {result.Error?.Message}");
+            if (result.Error?.HasIssue(PayPalIssues.InstrumentDeclined) == true)
+            {
+                Console.Error.WriteLine("(The card was declined, so nothing was charged. Create a new order to try again.)");
+            }
             return 1;
         }
 
-        Console.WriteLine($"Captured! Status: {capture.Data!.Status}");
-        return 0;
+        var order = result.Data!;
+        if (order.IsPaid)
+        {
+            Console.WriteLine($"Captured! Status: {order.Status}, capture {order.Capture!.Id} ({order.Capture.Amount?.Value} {order.Capture.Amount?.CurrencyCode})");
+            return 0;
+        }
+        if (order.Status is "CREATED" or "PAYER_ACTION_REQUIRED")
+        {
+            Console.Error.WriteLine($"Not approved yet (status {order.Status}): open the approval URL and approve it as a Sandbox buyer first.");
+            return 1;
+        }
+        Console.Error.WriteLine($"Not paid: order {order.Status}, capture {order.Capture?.Status ?? "none"}.");
+        return 1;
     }
 
     /// <summary>

@@ -9,8 +9,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-    <PackageReference Include="PayPal.PartnerGateway" Version="1.0.1" />
-    <PackageReference Include="PayPal.PartnerGateway.AspNetCore" Version="1.0.1" />
+    <PackageReference Include="PayPal.PartnerGateway" Version="1.3.0" />
+    <PackageReference Include="PayPal.PartnerGateway.AspNetCore" Version="1.3.0" />
   </ItemGroup>
 
 </Project>

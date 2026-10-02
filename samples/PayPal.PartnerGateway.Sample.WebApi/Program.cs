@@ -76,12 +76,14 @@ app.MapPost("/orders", async (PayPalPartnerClient client) =>
     return Results.Ok(new { orderId = order.Data!.Id, approvalUrl = order.Data.ApprovalUrl });
 });
 
+// CompleteAsync: safe to call more than once (captures an APPROVED order, never twice). Fulfil only
+// when IsPaid - an order can read COMPLETED while its capture is still PENDING or DECLINED.
 app.MapPost("/orders/{orderId}/capture", async (string orderId, PayPalPartnerClient client) =>
 {
-    var capture = await client.Orders.CaptureAsync(orderId);
-    return capture.IsSuccess
-        ? Results.Ok(capture.Data)
-        : Results.BadRequest(new { error = capture.Error?.Message });
+    var result = await client.Orders.CompleteAsync(orderId);
+    return result.IsSuccess
+        ? Results.Ok(new { paid = result.Data!.IsPaid, status = result.Data.Status, captureId = result.Data.Capture?.Id })
+        : Results.BadRequest(new { issue = result.Error?.Issue, error = result.Error?.Message });
 });
 
 // 3. Receive and verify PayPal webhook notifications.

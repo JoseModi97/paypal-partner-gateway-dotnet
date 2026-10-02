@@ -46,14 +46,21 @@ Console.WriteLine();
 Console.Write("2. Once you've approved it in the browser, press Enter here to capture the payment...");
 Console.ReadLine();
 
-var capture = await client.Orders.CaptureAsync(order.Data.Id);
+// CompleteAsync captures an approved order (and is safe to run again); check IsPaid, since an
+// order can read COMPLETED while its capture is still PENDING or DECLINED.
+var result = await client.Orders.CompleteAsync(order.Data.Id);
 
-if (capture.IsSuccess)
+if (result.IsSuccess && result.Data!.IsPaid)
 {
-    Console.WriteLine($"Captured! Payment status: {capture.Data!.Status}");
+    Console.WriteLine($"Captured! Capture {result.Data.Capture!.Id}: {result.Data.Capture.Amount?.Value} {result.Data.Capture.Amount?.CurrencyCode}");
+}
+else if (result.IsSuccess)
+{
+    Console.WriteLine($"Not paid yet: order {result.Data!.Status}, capture {result.Data.Capture?.Status ?? "none"}.");
+    Console.WriteLine("(CREATED means the order wasn't actually approved in the browser yet.)");
 }
 else
 {
-    Console.WriteLine($"Capture failed: {capture.Error?.Name} - {capture.Error?.Message}");
-    Console.WriteLine("(If this says ORDER_NOT_APPROVED, the order wasn't actually approved in the browser yet.)");
+    // Error.Issue is the specific reason, e.g. INSTRUMENT_DECLINED (card declined, nothing charged).
+    Console.WriteLine($"Capture failed: {result.Error?.Issue ?? result.Error?.Name} - {result.Error?.Message}");
 }

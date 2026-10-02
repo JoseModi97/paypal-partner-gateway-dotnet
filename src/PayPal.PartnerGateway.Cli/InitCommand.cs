@@ -29,9 +29,10 @@ public static class InitCommand
     /// <summary>
     /// The version written into <c>#:package</c> directives for file-based apps, since there's no
     /// PackageReference for <c>dotnet add package</c> to resolve "latest" against for those. Keep
-    /// this in sync with the shipped package version.
+    /// this in sync with the shipped package version. At least 1.3.0: earlier versions fail in
+    /// file-based apps, which turn reflection-based JSON off by default.
     /// </summary>
-    private const string PackageVersion = "1.0.1";
+    private const string PackageVersion = "1.3.0";
 
     public static async Task<int> RunAsync(string[] args)
     {

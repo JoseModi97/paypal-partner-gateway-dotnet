@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <!-- Run like a .NET 10 file-based app / AOT-ready project, where reflection-based JSON is off
+         by default: the library must still (de)serialize, so every test here guards against the
+         "Reflection-based serialization has been disabled" failure shipped up to 1.2.4. -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
   <ItemGroup>
